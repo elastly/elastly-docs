@@ -32,7 +32,14 @@
       "proxy": true
     },
     "examples": {
-      "languages": ["bash", "typescript", "python", "php", "java", "go"]
+      "languages": [
+        "bash",
+        "typescript",
+        "python",
+        "php",
+        "java",
+        "go"
+      ]
     }
   },
   "navigation": {
@@ -40,7 +47,12 @@
       {
         "group": "Getting started",
         "icon": "rocket",
-        "pages": ["index", "quickstart", "connectors"]
+        "pages": [
+          "index",
+          "quickstart",
+          "connectors",
+          "field-mapping"
+        ]
       },
       {
         "group": "API reference",
@@ -49,7 +61,9 @@
           {
             "group": "Prices",
             "icon": "tag",
-            "pages": ["api/endpoints/get-prices"]
+            "pages": [
+              "api/endpoints/get-prices"
+            ]
           },
           {
             "group": "Ingest",
@@ -64,7 +78,10 @@
           {
             "group": "Write-backs",
             "icon": "arrow-up-from-line",
-            "pages": ["api/endpoints/claim-writebacks", "api/endpoints/ack-writebacks"]
+            "pages": [
+              "api/endpoints/claim-writebacks",
+              "api/endpoints/ack-writebacks"
+            ]
           }
         ]
       }
@@ -84,7 +101,13 @@
     }
   },
   "contextual": {
-    "options": ["copy", "view", "chatgpt", "claude", "mcp"]
+    "options": [
+      "copy",
+      "view",
+      "chatgpt",
+      "claude",
+      "mcp"
+    ]
   },
   "footer": {
     "socials": {

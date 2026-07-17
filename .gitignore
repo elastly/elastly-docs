@@ -1,0 +1,10 @@
+# Installed skills. Vendored third-party content, restored with `npx skills install`.
+# skills-lock.json is committed so the restore is reproducible.
+.agents/skills/
+.claude/skills/
+.kiro/
+.qwen/
+
+node_modules/
+.DS_Store
+*.log

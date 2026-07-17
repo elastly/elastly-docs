@@ -1,0 +1,217 @@
+---
+title: "Field mapping"
+description: "Tell Elastly which of your source fields mean what, so it reads your data the way you intend."
+icon: "arrows-left-right"
+---
+
+Every business names its data a little differently. Your cost might be called `averagecost` in one
+system and `unit_cost` in another, and ERPs are full of custom fields. Field mapping is where you
+tell Elastly which of your fields mean what.
+
+You rarely start from scratch. When you connect a source, Elastly reads its schema and a sample of
+real rows, then proposes a mapping. You review what it flags, fix anything specific to your account,
+and save. Every sync after that follows the mapping.
+
+## What you actually have to map
+
+Three fields. Everything else is optional and makes the price sharper when you map it.
+
+| Entity   | Field        | Why it's required                                              |
+| -------- | ------------ | -------------------------------------------------------------- |
+| Product  | `sku`        | The unique code Elastly prices against and matches on.          |
+| Product  | `costCents`  | Cost is the margin basis. Without it there is nothing to stack. |
+| Customer | `externalId` | Identifies who is buying, so pricing can vary by customer.      |
+
+Quotes and orders also need an id, a customer reference, and a sale date, but your connector fills
+those in itself. You never map them by hand.
+
+## How Elastly proposes a mapping
+
+For each canonical field, Elastly ranks every candidate in your source on three signals:
+
+- **Name.** How closely the source field's name resembles the canonical one. This carries the most
+  weight.
+- **Type.** Whether the source type fits (a money field should not be mapped from a date).
+- **How often it's populated.** A column that is empty in most of your sample rows is a poor match,
+  even with a perfect name.
+
+Each field then lands in one of three states, which you see as pills in the mapping board:
+
+<Columns cols={3}>
+  <Card title="Verified" icon="circle-check" horizontal>
+    Elastly is confident. Nothing for you to do.
+  </Card>
+  <Card title="Review" icon="triangle-exclamation" horizontal>
+    Your call. A close second candidate, or a weaker match.
+  </Card>
+  <Card title="Not mapped" icon="circle-minus" horizontal>
+    No candidate was good enough to guess.
+  </Card>
+</Columns>
+
+<Note>
+  **Money is always your call.** A field that holds money, or that needs converting to cents, is
+  never auto-verified, even when the match is obvious. Cost is the basis for every margin Elastly
+  stacks, so a wrong guess there is wrong everywhere. It always lands in **Review**.
+</Note>
+
+If two candidates score close together, Elastly treats the field as ambiguous and asks you rather
+than picking a winner.
+
+## Product fields
+
+`sku` and `costCents` are required. The rest sharpen the price or help match products when you map
+them.
+
+| Field            | Type    | What it's for                                                     |
+| ---------------- | ------- | ----------------------------------------------------------------- |
+| `sku`            | string  | The unique code for the product. Required.                        |
+| `costCents`      | money   | Unit cost, the margin basis. Required.                            |
+| `name`           | string  | The product name people recognize.                                |
+| `listPriceCents` | money   | The current selling price.                                        |
+| `mapCents`       | money   | Minimum advertised price, if your brand agreements set one.       |
+| `floorCents`     | money   | A per-product price floor carried in from your source.            |
+| `ceilingCents`   | money   | A per-product price ceiling carried in from your source.          |
+| `category`       | ref     | How products are grouped. Drives the base margin.                 |
+| `subcategory`    | ref     | A finer grouping under category.                                  |
+| `brand`          | ref     | Used for brand-level margin adjustments.                          |
+| `stockQty`       | number  | Units on hand.                                                    |
+| `stockOnOrder`   | number  | Units on order but not yet received.                              |
+| `inStock`        | boolean | Whether the product can be sold right now.                        |
+| `gtin`           | string  | Barcode identifier, used to match products.                       |
+| `mpn`            | string  | Manufacturer part number, used to match products.                 |
+| `lastReceivedAt` | date    | When stock last arrived. Feeds cost-trend adjustments.            |
+
+<Tip>
+  `floorCents` and `ceilingCents` let a product carry its own limits in from your source, which is
+  useful when a specific item has a contractual price band. They sit alongside the workspace
+  guardrails in [Guardrails & rules](/guardrails), and the tighter of the two always wins.
+</Tip>
+
+## Customer fields
+
+Only `externalId` is required. The others are what let a price vary by who is buying.
+
+| Field          | Type   | What it's for                                             |
+| -------------- | ------ | --------------------------------------------------------- |
+| `externalId`   | string | Your own id for the customer. Required.                   |
+| `name`         | string | The customer name shown in Elastly.                       |
+| `segment`      | ref    | The group a customer belongs to. Drives segment pricing.  |
+| `region`       | ref    | Where they buy from. Drives regional adjustments.         |
+| `country`      | string | Used for regional grouping when you have no region field. |
+| `creditTerms`  | ref    | Payment terms, which can move the price.                  |
+
+## Quotes and orders
+
+Elastly maps these itself. A quote carries an id, the customer it belongs to, its status, and its
+date. An order carries an id, the customer, and when it sold. Orders are the signal the pricing
+learns from, and quotes tell it what was won and lost.
+
+Only NetSuite syncs quotes today. See [Connectors](/connectors).
+
+## When your data isn't a plain column
+
+Real systems hide things. A mapping doesn't have to be one column on one table:
+
+<AccordionGroup>
+  <Accordion title="Column" icon="table-columns">
+    A field on the record itself, like `product.name`. The common case.
+  </Accordion>
+  <Accordion title="Related table" icon="table-cells">
+    Pull the value from a table joined to the record. NetSuite's cost works this way: it joins
+    `inventoryItemLocations` to the item and picks average cost. Because a join can match more than
+    one row, you choose how to fold them: **First match**, **Sum**, **Minimum**, or **Maximum**.
+  </Accordion>
+  <Accordion title="Lookup" icon="tags">
+    Follow a code to its human label. Useful when your source stores a category as an id and you want
+    the name behind it.
+  </Accordion>
+  <Accordion title="Fixed value" icon="lock">
+    Always use the same value. Useful when a source has no field for something and it never varies,
+    like a single-region account.
+  </Accordion>
+</AccordionGroup>
+
+A mapping can also **transform** the value on the way in: convert money to cents, coerce to a number,
+treat "greater than zero" as in stock, parse a day-first date, trim, uppercase, or take the absolute
+value. And it can fall back: try one source, and if it's empty, try the next.
+
+## What each source starts with
+
+Each connector ships defaults for its standard fields, so most accounts barely touch the mapping.
+The gaps are deliberate: where a value lives is specific to your account, Elastly asks rather than
+guesses.
+
+<Tabs>
+  <Tab title="NetSuite">
+    | Canonical      | Comes from                                                       |
+    | -------------- | ---------------------------------------------------------------- |
+    | `sku`          | `item.itemid`                                                    |
+    | `name`         | `item.displayname`                                               |
+    | `costCents`    | average cost, joined from `inventoryItemLocations`               |
+    | `stockQty`     | joined from `inventoryItemLocations`                             |
+    | `stockOnOrder` | joined from `inventoryItemLocations`                             |
+    | `externalId`   | `customer.entityid`                                              |
+    | `segment`      | `customer.pricelevel`                                            |
+    | `country`      | joined from the customer's default billing address               |
+
+    **Category and brand have no default.** NetSuite accounts keep them in different places, often a
+    custom field, so Elastly asks instead of guessing wrong.
+  </Tab>
+  <Tab title="Shopify">
+    | Canonical    | Comes from                             |
+    | ------------ | -------------------------------------- |
+    | `sku`        | `variant.id`                           |
+    | `name`       | `product.title`                        |
+    | `costCents`  | `variant.inventoryItem.unitCost`       |
+    | `stockQty`   | `variant.inventoryQuantity`            |
+    | `category`   | `product.productType`                  |
+    | `brand`      | `product.vendor`                       |
+    | `gtin`       | `variant.barcode`                      |
+
+    Elastly keys on the variant id rather than the variant's SKU field, because a Shopify SKU is free
+    text and is often blank or duplicated. If you price on your own SKU, point `sku` at it.
+  </Tab>
+  <Tab title="BigCommerce">
+    | Canonical   | Comes from              |
+    | ----------- | ----------------------- |
+    | `sku`       | `variant.sku`           |
+    | `name`      | `product.name`          |
+    | `costCents` | `variant.cost_price`    |
+    | `stockQty`  | `variant.inventory_level` |
+    | `category`  | `product.category`      |
+    | `brand`     | `product.brand_id`      |
+    | `gtin`      | `variant.gtin`          |
+    | `mpn`       | `variant.mpn`           |
+  </Tab>
+  <Tab title="WooCommerce">
+    | Canonical   | Comes from               |
+    | ----------- | ------------------------ |
+    | `sku`       | `variant.sku`            |
+    | `name`      | `product.name`           |
+    | `costCents` | `variant.cost_cents`     |
+    | `stockQty`  | `variant.stock_quantity` |
+    | `category`  | `product.category`       |
+
+    WooCommerce has no cost field of its own. `cost_cents` comes from a cost plugin or a custom field,
+    so check this one on a real store.
+  </Tab>
+</Tabs>
+
+When your account keeps something somewhere else, like a cost in a metafield, point the mapping at
+that field instead.
+
+## Where you do it
+
+Open the connector from **Integrations** and go to **Field mapping**. The board shows one column per
+record type: Product, Customer, Quote, and Order. Fields needing attention are flagged, and you can
+open any field to see the sample values behind Elastly's guess before you accept it.
+
+You can change a mapping at any time. If your source schema changes, re-run discovery to pick up new
+fields without losing what you already verified.
+
+<Note>
+  **Worth a second look.** Category and customer segment are the two mappings to confirm on a real
+  account. They decide how prices and recommendations get grouped, and the field they come from is
+  specific to how you set up your system.
+</Note>
