@@ -1,0 +1,82 @@
+---
+title: "Ingest overview"
+sidebarTitle: "Overview"
+description: "Push your catalog, customers, quotes, and orders to Elastly from a homegrown ERP or storefront, in batches you control."
+icon: "arrow-down-to-line"
+---
+
+If you don't run one of the systems Elastly connects to directly, you push your data to it instead.
+You send Elastly your products, customers, quotes, and orders over the Ingest API, and it prices from
+them the same way it prices from a native connector. This is what the SDK's connector framework uses
+under the hood.
+
+<Info>
+  Ingest pushes data **into** Elastly. To pull approved prices back out and apply them in your own
+  system, see [Write-backs](/api/writebacks). To have the SDK run the whole flow for you, see
+  [Build your own connector](/build-a-connector).
+</Info>
+
+## Before you start
+
+1. In the dashboard, open **Integrations** and connect **Custom ERP** or **Custom Storefront**. There
+   are no credentials to paste. Custom ERP accepts quotes; Custom Storefront is catalog and orders
+   only.
+2. Under **Settings → API keys**, create a key with the **Connector** scope, and send it as a bearer
+   token on every request.
+
+<Warning>
+  **One connector per workspace.** A workspace holds a single connector at a time. You cannot push
+  data to a workspace already connected to NetSuite, Shopify, or another provider.
+</Warning>
+
+## How a batch works
+
+You group records into a **batch**, stage them entity by entity, then commit. Committing hands the
+batch to Elastly, which drains it into your workspace in the background and folds the outcomes into
+pricing. Until you commit, a batch holds nothing that affects pricing, so you can build it up over as
+many requests as you need.
+
+<Steps titleSize="h3">
+  <Step title="Open a batch">
+    [Open a batch](/api/endpoints/create-ingest-batch) to get an id to stage against.
+  </Step>
+  <Step title="Stage your records">
+    [Stage](/api/endpoints/stage-ingest-records) up to 1000 records of one entity at a time. Products
+    first, then customers, then quotes and orders.
+  </Step>
+  <Step title="Commit">
+    [Commit](/api/endpoints/commit-ingest-batch) to seal the batch and let Elastly drain it.
+  </Step>
+  <Step title="Check status">
+    [Poll the batch](/api/endpoints/get-ingest-batch-status) until the drain finishes, then read what
+    landed.
+  </Step>
+</Steps>
+
+<Note>
+  **Stage in dependency order.** Send products first, then customers, then the quotes and orders that
+  reference them. Elastly resolves each quote and order line back to the customer and product you sent
+  by their `externalId`, so those have to exist in the batch first.
+</Note>
+
+## What each entity carries
+
+The full field list for each entity is on the [stage records](/api/endpoints/stage-ingest-records)
+page, generated from the API contract. The essentials:
+
+- **Product.** `sku`, `name`, `category`, `costCents`, and `currentPriceCents` are required. Cost is
+  the margin basis, so it is never optional. Optional `mapCents`, `floorCents`, and `ceilingCents`
+  carry per-product guardrails in.
+- **Customer.** `externalId` and `name` are required. `segment` is your own label, and Elastly derives
+  its segment from it.
+- **Quote.** Carries its `outcome` (`open`, `won`, `lost`) so Elastly can learn. Each line must echo
+  the `pricingDecisionId` from the price Elastly gave you, so a won or lost line ties back to the exact
+  recommendation.
+- **Order.** Realized, line-level sales with `soldPriceCents`. Link an order to the quote it closed
+  with `sourceQuoteExternalId`.
+
+## When you're over the SKU cap
+
+If a product batch would push you past your plan's SKU cap, Elastly ingests up to the cap and reports
+the remainder as `skippedOverCap` on the batch status, rather than failing the whole batch. Nothing is
+dropped without telling you.

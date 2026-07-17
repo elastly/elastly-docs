@@ -101,6 +101,7 @@
             "group": "Ingest",
             "icon": "arrow-down-to-line",
             "pages": [
+              "api/ingest",
               "api/endpoints/create-ingest-batch",
               "api/endpoints/stage-ingest-records",
               "api/endpoints/commit-ingest-batch",
@@ -111,6 +112,7 @@
             "group": "Write-backs",
             "icon": "arrow-up-from-line",
             "pages": [
+              "api/writebacks",
               "api/endpoints/claim-writebacks",
               "api/endpoints/ack-writebacks"
             ]

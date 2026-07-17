@@ -1,0 +1,57 @@
+---
+title: "Write-backs overview"
+sidebarTitle: "Overview"
+description: "Pull approved prices out of Elastly and apply them in your own system, then confirm what landed."
+icon: "arrow-up-from-line"
+---
+
+When you approve a price in Elastly, it needs to reach the system your team actually works in. If
+Elastly writes to your provider directly, that happens on its own. If your system sits behind a
+firewall or isn't one Elastly connects to, you pull the approved prices instead: claim a batch, apply
+them on your side, and tell Elastly what landed.
+
+<Info>
+  Write-backs move approved prices **out** of Elastly. To push your catalog and sales history **in**,
+  see [Ingest](/api/ingest). To have the SDK run this loop for you, see
+  [Build your own connector](/build-a-connector).
+</Info>
+
+## Before you start
+
+Connect **Custom ERP** or **Custom Storefront** under **Integrations**, then create a **Connector** API
+key under **Settings → API keys** and send it as a bearer token on every request.
+
+<Warning>
+  **Treat the key like a password.** A Connector key can read approved prices for your whole workspace.
+  Store it server-side, never in client code, and revoke it in the dashboard if it leaks.
+</Warning>
+
+## How claiming works
+
+Claiming hands you a batch of approved prices and leases them to you for a short window. While a price
+is leased, Elastly won't hand it to another caller and won't write it through a native connector, so a
+price is never applied twice.
+
+<Steps titleSize="h3">
+  <Step title="Claim">
+    [Claim](/api/endpoints/claim-writebacks) a batch of approved prices. They're leased to you.
+  </Step>
+  <Step title="Apply">
+    Write each price into your own system.
+  </Step>
+  <Step title="Acknowledge">
+    [Acknowledge](/api/endpoints/ack-writebacks) what landed. Successes are marked applied; failures
+    return to the queue.
+  </Step>
+</Steps>
+
+If you never acknowledge, the lease expires on its own and the price returns to the queue for a later
+claim, so a crash mid-apply never loses a price. Each task identifies the product by both `productSku`
+and `productExternalId`, so you can match it however your system keys products.
+
+<Note>
+  **Delivery is at-least-once, so make your write idempotent.** A task whose ack never arrived returns
+  to the queue and reaches you again. Setting the same price twice should be harmless. When you
+  acknowledge, `expired` counts tasks whose lease had already run out; those were returned to the
+  queue, so claim again and reapply them.
+</Note>
