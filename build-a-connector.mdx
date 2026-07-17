@@ -1,0 +1,194 @@
+---
+title: "Build your own connector"
+sidebarTitle: "Build a connector"
+description: "Connect a homegrown ERP or storefront to Elastly in a day. You write five functions; the SDK runs the sync."
+icon: "wrench"
+---
+
+If your system of record is homegrown, or one Elastly cannot reach from the outside, you connect it
+yourself: your code calls Elastly, not the other way around. The SDK owns the hard parts (paging,
+checkpoints, retries, batching, run reporting, write-back leases). You implement five functions that
+only you can write, because they read your schema.
+
+## Before you start
+
+1. Connect **Custom ERP** or **Custom Storefront** under **Integrations**.
+2. Create a **Connector** API key under **Settings → API keys**. Ingest and write-backs need this
+   scope; an ERP key will not work.
+3. If you also serve prices, create a separate **ERP** key. One key holds one scope.
+
+## The four loops
+
+A complete connector closes four loops. The first three feed Elastly; the fourth applies what Elastly
+decided.
+
+| Loop      | What moves                                       | Your function              |
+| --------- | ------------------------------------------------ | -------------------------- |
+| Catalog   | Products with real costs                         | `fetchProducts`            |
+| Customers | Who you sell to                                  | `fetchCustomers`           |
+| Outcomes  | Quotes with won/lost and orders with sold prices | `fetchQuotes`, `fetchOrders` |
+| Apply     | Approved prices back into your system            | `applyPrice`               |
+
+The outcomes loop is the one teams skip, and skipping it is the expensive mistake. Without quotes and
+orders flowing back, Elastly can serve prices but never learns whether they won. Your margin model
+stays frozen at day one, silently.
+
+## Define the connector
+
+```ts
+import { Elastly, FileCheckpointStore, defineConnector } from "@elastly/sdk"
+
+const elastly = new Elastly({ apiKey: process.env.ELASTLY_CONNECTOR_KEY })
+
+const connector = defineConnector({
+  async fetchProducts(cursor) {
+    const rows = await erp.products({ after: cursor, limit: 500 })
+    return {
+      records: rows.map((row) => ({
+        sku: row.sku,
+        externalId: row.id,
+        name: row.name,
+        category: row.category,
+        costCents: row.unitCostCents,
+        currentPriceCents: row.listPriceCents,
+        currency: "USD",
+      })),
+      nextCursor: rows.length === 500 ? rows[rows.length - 1].id : null,
+    }
+  },
+
+  async fetchCustomers(cursor) {
+    const rows = await erp.customers({ after: cursor })
+    return {
+      records: rows.map((row) => ({ externalId: row.id, name: row.name, segment: row.tier })),
+      nextCursor: null,
+    }
+  },
+
+  async fetchQuotes(cursor) {
+    const rows = await erp.closedQuotes({ after: cursor })
+    return {
+      records: rows.map((quote) => ({
+        externalId: quote.id,
+        customerExternalId: quote.customerId,
+        outcome: quote.wonAt ? "won" : quote.lostAt ? "lost" : "open",
+        createdAt: quote.createdAt,
+        decidedAt: quote.wonAt ?? quote.lostAt ?? undefined,
+        lostReason: quote.lostReason,
+        lines: quote.lines.map((line) => ({
+          productSku: line.sku,
+          quantity: line.quantity,
+          costCents: line.costCents,
+          quotedPriceCents: line.finalPriceCents,
+          pricingDecisionId: line.elastlyDecisionId ?? null,
+          elastlyQuotedPriceCents: line.elastlyPriceCents ?? null,
+          attributes: { lineLocator: line.id },
+        })),
+      })),
+      nextCursor: null,
+    }
+  },
+
+  async fetchOrders(cursor) {
+    const rows = await erp.orders({ after: cursor, limit: 200 })
+    return {
+      records: rows.map((order) => ({
+        externalId: order.id,
+        customerExternalId: order.customerId,
+        currency: order.currency,
+        soldAt: order.postedAt,
+        lines: order.lines.map((line) => ({
+          productSku: line.sku,
+          quantity: line.quantity,
+          costCents: line.costCents,
+          soldPriceCents: line.soldPriceCents,
+        })),
+      })),
+      nextCursor: rows.length === 200 ? rows[rows.length - 1].id : null,
+    }
+  },
+
+  async applyPrice(task) {
+    await erp.updatePrice(task.target.quoteExternalId, task.target.lineLocator, task.priceCents)
+    return { id: task.id, ok: true }
+  },
+})
+```
+
+Two fields in `fetchQuotes` deserve your full attention:
+
+- **`pricingDecisionId`** is the id you stored when you priced the line (see the
+  [SDK quickstart](/sdk)). Echoing it back is how Elastly learns from the difference between its price
+  and your rep's final price. The runtime warns loudly when a sync ingests quote lines with none.
+- **`attributes.lineLocator`** is any identifier that is stable for that line in your system (a line
+  id, a row number). Elastly uses it to match the line across syncs and to address it when writing an
+  approved price back. Lines without it are priced and learned from, but they are skipped by override
+  capture and by write-backs.
+
+Optional means optional: a catalog-only storefront implements `fetchProducts` and `fetchCustomers` and
+stops there. The runtime skips what you leave out.
+
+Page everything that can grow. Return `nextCursor` whenever another page exists, as `fetchProducts`
+and `fetchOrders` do above; a connector that returns its whole table in one page works in a demo and
+times out at a million rows.
+
+## Run a sync
+
+```ts
+const report = await connector.sync({
+  client: elastly,
+  checkpoints: new FileCheckpointStore("./elastly-checkpoints.json"),
+})
+
+console.log(report.status, report.staged, report.warnings)
+```
+
+One call runs the whole ingest: it opens a staged batch, pages every entity you implement in the right
+order (products, then customers, then quotes, then orders, so a quote never arrives before its
+customer), commits, and waits until Elastly has drained the batch. Progress lands in your dashboard
+under **Integrations** like any native connector.
+
+Checkpoints make the run crash-safe. The cursor is saved after every page, so a process that dies
+mid-sync resumes where it stopped instead of starting over, and re-sent pages are deduplicated on your
+external ids. Back the store with your own database by implementing `get` and `set`, or use the file
+store above.
+
+Watch the report's `warnings`. Two matter:
+
+- `missing_decision_ids`: every quote line in this run had a null `pricingDecisionId`. The learning
+  loop is dark. Fix your round-trip.
+- `skipped_over_cap`: the sync succeeded but some new products were not persisted because your
+  workspace is at its SKU cap. Nothing was silently dropped without telling you.
+
+Run `sync()` on whatever schedule fits your data, a cron every 15 minutes is typical. Elastly rejects
+overlapping syncs for the same connector, so a slow run and the next tick never collide.
+
+## Apply approved prices
+
+When someone approves a price in Elastly, it lands in a queue for your connector. Drain it whenever you
+like:
+
+```ts
+const report = await connector.drainWritebacks({ client: elastly })
+console.log(report.applied, report.failed, report.expired)
+```
+
+The runtime claims a batch, calls your `applyPrice` for each task, and acknowledges the results. Each
+claim carries a lease: the runtime skips tasks whose lease has already run out, and refuses to
+acknowledge work that outlived it, so two connectors never work the same task at once. Delivery is
+at-least-once, though. A task that could not be acknowledged returns to the queue and will reach
+`applyPrice` again, so make your write idempotent: setting the same price twice should be harmless, and
+it usually is. A task that fails is retried on a later drain and parked after five attempts, where you
+can see it under **Integrations**.
+
+## Prove the loop is closed
+
+After your first full sync, check three things in the dashboard:
+
+1. **Products** shows your catalog with costs.
+2. **Integrations** shows the sync run with the counts you expect.
+3. After a few closed quotes flow in, the pricing dashboards start attributing wins and losses to
+   prices. That is the learning loop working.
+
+If prices serve but the dashboards never move, the decision-id round-trip is broken. That is always
+the first thing to check.

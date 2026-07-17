@@ -1,0 +1,139 @@
+---
+title: "Connecting BigCommerce"
+sidebarTitle: "BigCommerce"
+description: "Create a store API account in BigCommerce, then paste the store hash and access token into Elastly. It syncs your catalog, variants, cost, inventory, customers, and realized orders."
+icon: "/logos/bigcommerce.svg"
+---
+
+Elastly reads your catalog, variants, per-item cost, inventory, customers, and realized orders from
+BigCommerce over the Catalog and Orders APIs. Your catalog comes in at the variant level, which is
+the unit BigCommerce prices.
+
+There is no app to install and nothing to submit for review. You create an API account in your own
+control panel and give Elastly two values from it: a **store hash** and an **access token**.
+
+<Info>
+  Setup takes about five minutes. You need to be a store owner, or an admin who can create API accounts.
+</Info>
+
+## Find your store hash
+
+Log in to your BigCommerce control panel and read it straight off the address bar. In a URL like
+`https://store-abc123xyz.mybigcommerce.com/manage`, the store hash is the part between `store-` and
+`.mybigcommerce.com`, so here it is `abc123xyz`.
+
+You'll see it again in the API path of the account you create next, so there's nothing to memorize.
+
+## Create the API account
+
+<Steps>
+  <Step title="Open API accounts">
+    In the control panel go to **Settings → API → Store-level API accounts**, press **Create API
+    account**, and choose the **V2/V3 API token** type. Name it `Elastly`.
+
+    You can jump straight there at `store-your-store-hash.mybigcommerce.com/manage/settings/api-accounts`.
+  </Step>
+  <Step title="Grant the access it needs">
+    Set the OAuth scopes to exactly these. Nothing more, nothing less.
+
+    | Scope                    | Level     | What it's for                                                     |
+    | ------------------------ | --------- | ----------------------------------------------------------------- |
+    | Products                 | Modify    | Catalog, variants, price, cost, categories, brands. Choose read-only if you never want write-back. |
+    | Orders                   | Read-only | Realized sales. The outcome the learning loop trains on.          |
+    | Customers                | Read-only | Who is buying, and their customer group. Groups seed per-segment pricing. |
+    | Information & settings   | Read-only | Your store's currency and plan, so Elastly prices in your currency and tells a trial store from a live one. |
+  </Step>
+  <Step title="Save, and keep the file it gives you">
+    Press **Save**. BigCommerce downloads a `.txt` file and shows the credentials on screen once.
+
+    <Warning>
+      **The token is shown once.** If you lose the access token you cannot get it back, and neither
+      can BigCommerce support. The client ID and client secret in that same file are **not**
+      substitutes for it. Your only option is to delete the API account and create a new one. Keep the
+      `.txt` until the token is pasted into Elastly.
+    </Warning>
+
+    The file gives you both values you need:
+
+    | Field        | Example                                            | Use it for                    |
+    | ------------ | -------------------------------------------------- | ----------------------------- |
+    | Access Token | `abc123def456...`                                  | Paste straight into Elastly.  |
+    | API Path     | `https://api.bigcommerce.com/stores/abc123xyz/v3/` | The `abc123xyz` in it is your store hash. |
+  </Step>
+</Steps>
+
+## Connect
+
+<Steps>
+  <Step title="Open Integrations">
+    In Elastly, open **Integrations** and press **Connect BigCommerce**.
+  </Step>
+  <Step title="Paste the two values">
+    Enter your store hash and access token. Elastly checks them against your store immediately, so a
+    typo fails here rather than silently later.
+  </Step>
+  <Step title="Map your fields">
+    Elastly takes you to the **Field mapping** page with sensible defaults already filled in from your
+    store. Review them, adjust anything that's wrong, and save. See [Field mapping](/field-mapping).
+  </Step>
+</Steps>
+
+## What Elastly reads
+
+- **Products and variants.** Name, brand, category, and each variant's SKU, price, GTIN, and MPN. The
+  variant is the priced unit. A product with no variants comes in as a single unit.
+- **Cost.** The **Cost** field on the variant (`cost_price`). This is your margin basis.
+- **Inventory.** Inventory level per variant, used by stock-aware strategies.
+- **Customers.** Name, email, and customer group. Groups seed per-segment pricing.
+- **Orders.** Realized, line-level sales. This is the outcome the learning loop trains on.
+
+<Note>
+  **Cost is the gate.** A variant with no cost has no margin basis, so Elastly leaves it unpriced
+  until a later sync brings a cost in. Set **Cost** on your products in BigCommerce before you expect
+  recommendations. If a whole catalog syncs without a single cost, Elastly says so on the connector
+  page rather than leaving you to wonder why nothing is priced.
+</Note>
+
+## Products with no SKU
+
+BigCommerce doesn't force you to set a SKU. If a product or variant has none, Elastly keys it on its
+BigCommerce product and variant IDs instead. It still syncs, and its sales still reach the learning
+loop. You don't have to backfill SKUs to use Elastly.
+
+## Which orders count as a sale
+
+Elastly only learns from orders that actually completed. By default that means **Shipped**,
+**Partially Shipped**, and **Completed**. Cancelled, declined, refunded, and incomplete orders are
+ignored, so a refund never teaches the engine that a price won.
+
+If your store fulfils differently, widen that set under the connector's **Sync settings**.
+
+## How the sync runs
+
+- **On a schedule, unattended.** Set the cadence and direction under the connector's Sync settings.
+  You can pause auto-sync whenever you want.
+- **Incremental.** After the first full pull, each run only fetches records that changed since the
+  last watermark.
+- **Environment-aware.** Trial and prelaunch stores are detected and labelled Sandbox. Live stores
+  show Production.
+
+## Verify permissions
+
+If a scope is missing, BigCommerce quietly returns nothing for that record type, and the sync looks
+like it simply found no customers or no orders. Open **Diagnostics** on the connector page and press
+**Check permissions**. Elastly reads the granted scopes straight from your store and flags anything
+missing. It runs the same check after every sync.
+
+Scopes can't be changed on an existing API account. If one shows Missing, create a new account with
+the right scopes and reconnect.
+
+## Price write-back
+
+Write-back is off until you turn it on, so Elastly is read-only by default. When you enable it, an
+approved price publishes straight to the variant in BigCommerce. Elastly sets the price and touches
+nothing else on the product.
+
+- Turn it on by setting the connector's direction to include **out** under Sync settings.
+- It needs the **Products → modify** scope. If you created the account read-only, make a new one with
+  modify and reconnect.
+- Every price is yours to approve first. Elastly never publishes a price you haven't signed off on.

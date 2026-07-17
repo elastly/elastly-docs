@@ -64,6 +64,17 @@
         ]
       },
       {
+        "group": "Integrations",
+        "icon": "plug",
+        "pages": [
+          "connect-netsuite",
+          "connect-shopify",
+          "connect-bigcommerce",
+          "connect-woocommerce",
+          "build-a-connector"
+        ]
+      },
+      {
         "group": "API reference",
         "icon": "terminal",
         "pages": [
