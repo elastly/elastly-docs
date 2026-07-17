@@ -56,22 +56,6 @@
       "x": "https://x.com/elastlyio",
       "github": "https://github.com/elastly",
       "linkedin": "https://www.linkedin.com/company/elastly"
-    },
-    "links": [
-      {
-        "header": "Product",
-        "items": [
-          { "label": "Pricing", "href": "https://elastly.io/pricing" },
-          { "label": "Dashboard", "href": "https://app.elastly.io" }
-        ]
-      },
-      {
-        "header": "Resources",
-        "items": [
-          { "label": "Blog", "href": "https://elastly.io/blog" },
-          { "label": "Support", "href": "mailto:support@elastly.io" }
-        ]
-      }
-    ]
+    }
   }
 }
