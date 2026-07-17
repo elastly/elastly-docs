@@ -1,47 +1,82 @@
 ---
 title: "Quickstart"
-description: "Begin with a guide on the fastest path to a successful outcome"
+description: "Connect your data, let Elastly learn your pricing, and review your first recommendations."
+icon: "rocket"
 ---
 
-Describe how someone begins using your product. What is the first thing they need to do? Are there any prerequisites?
+import { ConnectorCard, ConnectorCards } from "/snippets/connector-card.jsx"
 
-A quickstart should take someone from zero to using your product. They'll get a quick win and a sense of what they can accomplish.
-
-## Prerequisites
-
-Before you begin, you must have:
-
-- Requirement one (for example, Node.js 18+, a free account, an API key)
-- Requirement two (for example, a compatible device, a compatible browser, a compatible operating system)
-
-## Get started
+Elastly turns your real catalog, costs, and sales history into price recommendations you can see the
+reasoning behind and approve. Nothing changes your live prices until you say so. Here's the shortest
+path from zero to your first recommendation.
 
 <Steps>
-  <Step title="Install">
-    Describe how to install your product or sign up.
+  <Step title="Connect your data">
+    Elastly prices from your own data, so the first step is to connect the system you already run on.
+    Pick one:
 
-    ```bash
-    npm install your-package
-    ```
+    <ConnectorCards>
+      <ConnectorCard
+        provider="netsuite"
+        name="Oracle NetSuite"
+        kind="ERP"
+        href="/connect-netsuite"
+        summary="Sync your catalog, costs, inventory, customers, quotes, and realized sales orders. Set up once by an administrator."
+        syncs={["Products & cost", "Customers", "Orders"]}
+      />
+      <ConnectorCard
+        provider="shopify"
+        name="Shopify"
+        kind="E-commerce"
+        href="/connect-shopify"
+        summary="A one-click install that syncs your catalog at the variant level, plus cost, inventory, customers, and orders."
+        syncs={["Products & cost", "Customers", "Orders"]}
+      />
+    </ConnectorCards>
+
+    The first sync pulls everything, then future syncs only fetch what changed. See
+    [Connectors](/connectors) for how syncing works.
+
+    <Note>
+      **Why it needs more than a price list.** Elastly learns from real outcomes, so it needs your
+      customers and your sales, not just a list of products and prices. That's why it connects to the
+      system where your selling actually happens.
+    </Note>
+
   </Step>
-  <Step title="Configure">
-    Describe any setup or configuration needed before first use.
 
-    ```bash
-    your-cli init
-    ```
+  <Step title="Let Elastly learn your pricing">
+    Once your data is in, Elastly builds a price for each product from the ground up. It starts with
+    a base margin for the product's category, then adjusts for the things that change the right
+    price: the customer's segment, their region, payment terms, whether cost is trending up, and how
+    demand is moving. Every adjustment is a plain, visible step, not a black box.
+
+    Over time it also learns from what actually sold. When a quote is won or lost, Elastly nudges the
+    margin for that customer and product by a tiny, careful amount, so pricing gets sharper the more
+    you sell. See [Pricing strategies](/strategies) for how the price is built.
+
   </Step>
-  <Step title="Run it">
-    Show the first thing a user does to see it working.
 
-    ```bash
-    your-cli start
-    ```
+  <Step title="Set your guardrails">
+    Guardrails are the limits every recommended price has to stay inside: a margin floor it can never
+    dip below, an optional ceiling, a cap on how far a price can move at once, and how prices round.
+    New workspaces start with sensible defaults, and you tune them in the Control Center. A strategy
+    can tighten a guardrail for its products, but it can never loosen one.
+
+    <Note>
+      **Guardrails always win.** A recommended price is clamped to your guardrails before you ever
+      see it, and the recommendation tells you which guardrail had the final say. See
+      [Guardrails & rules](/guardrails).
+    </Note>
+
+  </Step>
+
+  <Step title="Review and apply">
+    Elastly queues the products whose price should move, and only those. Each one comes with its
+    reason and the drivers behind it, so you can see why before you decide. Approve or reject in the
+    review queue, or let prices apply on their own when they're safely inside your guardrails. Every
+    change is recorded, so you can track realized margin over time. See
+    [Explainability](/explainability) for what travels with each recommendation.
+
   </Step>
 </Steps>
-
-<Tip>
-  Give people a way to get help. This could be a link to a support page, a chat with a customer support agent, or a forum for your product.
-
-  Example: Need help? Reach out to us at [support@yourcompany.com](mailto:support@yourcompany.com).
-</Tip>
