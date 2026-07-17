@@ -1,6 +1,6 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "linden",
+  "theme": "maple",
   "name": "Elastly",
   "description": "Per-line, explainable prices that learn from your real sales outcomes. Connect your ERP or storefront, set your guardrails, and review every recommendation before it ships.",
   "colors": {
