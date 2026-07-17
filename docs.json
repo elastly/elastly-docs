@@ -1,72 +1,91 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mintlify Starter Kit",
+  "theme": "linden",
+  "name": "Elastly",
+  "description": "Per-line, explainable prices that learn from your real sales outcomes. Connect your ERP or storefront, set your guardrails, and review every recommendation before it ships.",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#0e8c6b",
+    "light": "#38a584",
+    "dark": "#0a6b52"
   },
   "favicon": "/favicon.svg",
+  "logo": {
+    "light": "/logo/light.svg",
+    "dark": "/logo/dark.svg",
+    "href": "https://elastly.io"
+  },
+  "fonts": {
+    "heading": {
+      "family": "Bricolage Grotesque",
+      "weight": 700
+    },
+    "body": {
+      "family": "Geist"
+    }
+  },
+  "styling": {
+    "eyebrows": "section"
+  },
   "navigation": {
-    "pages": [
+    "groups": [
       {
-        "group": "Getting Started",
-        "pages": [
-          "index",
-          "quickstart"
-        ]
+        "group": "Getting started",
+        "icon": "rocket",
+        "pages": ["index", "quickstart"]
       }
     ],
     "global": {
       "anchors": [
         {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
+          "anchor": "Dashboard",
+          "href": "https://app.elastly.io",
+          "icon": "gauge"
         },
         {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
+          "anchor": "Support",
+          "href": "mailto:support@elastly.io",
+          "icon": "envelope"
         }
       ]
     }
   },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
   "navbar": {
     "links": [
       {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
+        "label": "Website",
+        "href": "https://elastly.io"
       }
     ],
     "primary": {
       "type": "button",
-      "label": "Dashboard",
-      "href": "https://app.mintlify.com"
+      "label": "Open dashboard",
+      "href": "https://app.elastly.io"
     }
   },
   "contextual": {
-    "options": [
-      "copy",
-      "view",
-      "chatgpt",
-      "claude",
-      "perplexity",
-      "mcp",
-      "cursor",
-      "vscode"
-    ]
+    "options": ["copy", "view", "chatgpt", "claude", "mcp"]
   },
   "footer": {
     "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
-    }
+      "x": "https://x.com/elastlyio",
+      "github": "https://github.com/elastly",
+      "linkedin": "https://www.linkedin.com/company/elastly"
+    },
+    "links": [
+      {
+        "header": "Product",
+        "items": [
+          { "label": "Pricing", "href": "https://elastly.io/pricing" },
+          { "label": "Dashboard", "href": "https://app.elastly.io" }
+        ]
+      },
+      {
+        "header": "Resources",
+        "items": [
+          { "label": "Blog", "href": "https://elastly.io/blog" },
+          { "label": "Support", "href": "mailto:support@elastly.io" }
+        ]
+      }
+    ]
   }
 }
