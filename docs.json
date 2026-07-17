@@ -58,7 +58,8 @@
         "group": "Concepts",
         "icon": "book-open",
         "pages": [
-          "strategies"
+          "strategies",
+          "guardrails"
         ]
       },
       {

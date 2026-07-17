@@ -1,0 +1,121 @@
+---
+title: "Guardrails & rules"
+description: "The limits every recommended price has to respect, and how they combine."
+icon: "shield-check"
+---
+
+The margin steps propose a target price. Guardrails are the limits that price has to respect before
+Elastly shows it to you. The steps decide where to aim; the guardrails decide the number you actually
+get. Every recommendation records which guardrail had the final say, so a held price is never a
+mystery.
+
+## The guardrails
+
+Eight limits can shape a final price. All of them are live.
+
+| Guardrail               | What it does                                                                           |
+| ----------------------- | -------------------------------------------------------------------------------------- |
+| Minimum margin          | The price can never fall below cost plus this margin. Every workspace has one.          |
+| Maximum margin          | An optional cap, so a price never runs away above a margin you set.                    |
+| Price floor             | A hard money floor for a product, regardless of margin.                                |
+| Price ceiling           | A hard money ceiling for a product.                                                    |
+| MAP compliance          | Minimum advertised price. The price never goes below what your brand agreement allows. |
+| Max competitor distance | Keeps the price within a set distance of a tracked competitor, above or below.          |
+| Max change per cycle    | Limits how far a price can move from what this customer last paid for this item.       |
+| Psychological rounding  | How the final number is tidied up.                                                     |
+
+Price floor, price ceiling, and MAP can come straight from your source as `floorCents`,
+`ceilingCents`, and `mapCents`, so a product can carry its own limits in. See
+[Field mapping](/field-mapping).
+
+## How they combine
+
+Guardrails do not fight each other. They collapse into one floor and one ceiling, and the strictest
+always wins.
+
+<Columns cols={2}>
+  <Card title="The floor is the highest of" icon="arrow-up-from-bracket">
+    Minimum margin, price floor, MAP, and the bottom of the competitor band. Whichever sits highest
+    is the floor.
+  </Card>
+  <Card title="The ceiling is the lowest of" icon="arrow-down-to-bracket">
+    Maximum margin, price ceiling, and the top of the competitor band. Whichever sits lowest is the
+    ceiling.
+  </Card>
+</Columns>
+
+When two limits land on exactly the same number, Elastly names the more specific one as the reason.
+MAP is named first, then price floor, then competitor distance, then minimum margin. If MAP and your
+margin floor both put the floor at $12.00, the recommendation says MAP held it, because that is the
+one you would want to know about.
+
+## The order they are applied
+
+<Steps titleSize="h3">
+  <Step title="Clamp to the floor, then the ceiling">
+    The target price is pulled inside the effective floor and ceiling.
+  </Step>
+  <Step title="Clamp to the last-price band">
+    The price is pulled inside the range allowed by what this customer last paid.
+  </Step>
+  <Step title="Round">
+    The number is tidied to your rounding style.
+  </Step>
+  <Step title="Check everything again">
+    The band, the ceiling, and the floor are all re-applied, in that order.
+  </Step>
+</Steps>
+
+<Note>
+  **The floor gets the last word, on purpose.** Rounding runs before the final checks, so a rounding
+  step can never push a price under your floor or over your ceiling. Anything rounding moves out of
+  bounds is pulled straight back in.
+</Note>
+
+## Max change per cycle
+
+This is the guardrail people misread most, so it is worth being precise. It does not band the last
+**price**. It bands the last **margin**, then applies that band to today's cost. If your cost moved,
+the price is allowed to move with it rather than being frozen to an old number.
+
+How wide the band is depends on how stale the price is and how much your cost has moved:
+
+| Ingredient      | Default                                                             |
+| --------------- | ------------------------------------------------------------------- |
+| Base            | 2pp either side of the last margin.                                 |
+| Age             | Widens 0.05pp per day since the last purchase, up to a further 10pp. |
+| Cost movement   | Widens as your cost moves, up to a further 10pp.                    |
+
+So a price sold yesterday at an unchanged cost barely moves. A price last sold a year ago, on a cost
+that has jumped, is allowed to catch up. The bottom of the band is never allowed below your minimum
+margin.
+
+## Rounding
+
+Two styles, and you pick one:
+
+<AccordionGroup>
+  <Accordion title="A familiar ending" icon="tag">
+    Snap every result to `.99`, `.95`, or a whole unit. Best where customers see the price.
+  </Accordion>
+  <Accordion title="A tiered ladder" icon="stairs">
+    Round to sensible steps that grow with the price. The default ladder rounds to the nearest 5c
+    under $10, the nearest 25c under $100, the nearest $1 under $1,000, and the nearest $5 above
+    that. A good fit for B2B pricing, where charm endings look out of place.
+  </Accordion>
+</AccordionGroup>
+
+## Where they live
+
+Your guardrails are set once in the **Control Center** and apply everywhere. New workspaces start
+with sensible defaults rather than an empty, unguarded state, so you are protected from day one.
+
+Strategies inherit them. A strategy can tighten the margin floor, the margin ceiling, rounding, and
+the max change for its own products. It can never loosen any of them, and it cannot touch the other
+guardrails at all. See [Pricing strategies](/strategies).
+
+<Note>
+  **Never a mystery.** Every recommendation carries the guardrail that held it back, if one did,
+  along with the full list of limits that were checked. A held price always explains itself. See
+  [Explainability](/explainability).
+</Note>
