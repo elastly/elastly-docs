@@ -47,7 +47,7 @@ export const ConnectorCard = ({ provider, name, kind, href, summary, syncs = [],
   return (
     <a
       href={href}
-      className="group flex flex-col rounded-2xl border border-gray-200 bg-white p-5 no-underline transition-colors hover:border-emerald-600/40 dark:border-white/10 dark:bg-white/5"
+      className="group flex flex-col rounded-2xl border border-gray-200 bg-white p-5 font-normal no-underline transition-colors hover:border-emerald-600/40 dark:border-white/10 dark:bg-white/5"
     >
       <div className="flex items-center gap-3">
         <span className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-gray-200 bg-gray-50 p-2 dark:border-white/10 dark:bg-white/5">
