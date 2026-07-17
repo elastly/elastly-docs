@@ -4,8 +4,6 @@ description: "Connect your data, let Elastly learn your pricing, and review your
 icon: "rocket"
 ---
 
-import { ConnectorCard, ConnectorCards } from "/snippets/connector-card.jsx"
-
 Elastly turns your real catalog, costs, and sales history into price recommendations you can see the
 reasoning behind and approve. Nothing changes your live prices until you say so. Here's the shortest
 path from zero to your first recommendation.
@@ -15,27 +13,23 @@ path from zero to your first recommendation.
     Elastly prices from your own data, so the first step is to connect the system you already run on.
     Pick one:
 
-    <ConnectorCards>
-      <ConnectorCard
-        provider="netsuite"
-        name="Oracle NetSuite"
-        kind="ERP"
-        href="/connect-netsuite"
-        summary="Sync your catalog, costs, inventory, customers, quotes, and realized sales orders. Set up once by an administrator."
-        syncs={["Products & cost", "Customers", "Orders"]}
-      />
-      <ConnectorCard
-        provider="shopify"
-        name="Shopify"
-        kind="E-commerce"
-        href="/connect-shopify"
-        summary="A one-click install that syncs your catalog at the variant level, plus cost, inventory, customers, and orders."
-        syncs={["Products & cost", "Customers", "Orders"]}
-      />
-    </ConnectorCards>
+    <Columns cols={2}>
+      <Card title="Oracle NetSuite" icon="/logos/netsuite.svg" href="/connect-netsuite">
+        Set up once by an administrator. Also syncs quotes.
+      </Card>
+      <Card title="Shopify" icon="/logos/shopify.svg" href="/connect-shopify">
+        A one-click install. Syncs your catalog at the variant level.
+      </Card>
+      <Card title="BigCommerce" icon="/logos/bigcommerce.svg" href="/connect-bigcommerce">
+        Connect with a store API token.
+      </Card>
+      <Card title="WooCommerce" icon="/logos/woocommerce.svg" href="/connect-woocommerce">
+        Connect with a consumer key and secret.
+      </Card>
+    </Columns>
 
     The first sync pulls everything, then future syncs only fetch what changed. See
-    [Connectors](/connectors) for how syncing works.
+    [Connectors](/connectors) for how syncing works, and for the sources coming next.
 
     <Note>
       **Why it needs more than a price list.** Elastly learns from real outcomes, so it needs your

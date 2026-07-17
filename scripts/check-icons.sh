@@ -26,6 +26,17 @@ while IFS= read -r icon; do
   fi
 done <<< "$ICONS"
 
+# Icons given as local paths (e.g. /logos/netsuite.svg) must exist in the repo.
+PATHS=$(grep -rhoE 'icon="/[^"]+"' docs.json ./*.mdx api 2>/dev/null | sed -E 's/icon="(.*)"/\1/' | sort -u)
+while IFS= read -r p; do
+  [ -z "$p" ] && continue
+  count=$((count + 1))
+  if [ ! -f ".${p}" ]; then
+    echo "✗ icon path $p has no file at .${p}"
+    fail=1
+  fi
+done <<< "$PATHS"
+
 if [ "$fail" -eq 0 ]; then
   echo "✓ all $count icons resolve"
 else

@@ -4,8 +4,6 @@ description: "Sync your ERP or store into the one model Elastly prices from, so 
 icon: "plug"
 ---
 
-import { ConnectorCard, ConnectorCards } from "/snippets/connector-card.jsx"
-
 A connector is a live link between your system of record and Elastly. Once it's set up, Elastly keeps
 your products, costs, customers, and sales in sync on a schedule. You don't export anything or upload
 files. Your data stays current on its own.
@@ -16,37 +14,55 @@ the data came from.
 
 ## Available today
 
-<ConnectorCards>
-  <ConnectorCard
-    provider="netsuite"
-    name="Oracle NetSuite"
-    kind="ERP"
-    href="/connect-netsuite"
-    summary="Sync your catalog, costs, inventory, customers, quotes, and realized sales orders straight from NetSuite. Set up once by an administrator."
-    syncs={["Products & cost", "Inventory", "Customers", "Quotes", "Orders"]}
-    note="Can also show Elastly's price live on a NetSuite quote line."
-  />
-  <ConnectorCard
-    provider="shopify"
-    name="Shopify"
-    kind="E-commerce"
-    href="/connect-shopify"
-    summary="A one-click install. Approve read-only access and Elastly syncs your catalog at the variant level, plus cost, inventory, customers, and orders."
-    syncs={["Products & cost", "Inventory", "Customers", "Orders"]}
-    note="Read-only. Elastly never changes anything in your store."
-  />
-</ConnectorCards>
+<Columns cols={2}>
+  <Card title="Oracle NetSuite" icon="/logos/netsuite.svg" href="/connect-netsuite" cta="Set it up">
+    The only source that also syncs **quotes**, and can show Elastly's price live on a quote line. Set
+    up once by an administrator with a certificate.
+  </Card>
+  <Card title="Shopify" icon="/logos/shopify.svg" href="/connect-shopify" cta="Set it up">
+    A one-click install that syncs your catalog at the **variant level**, plus inventory. Approve
+    access and the first sync starts.
+  </Card>
+  <Card title="BigCommerce" icon="/logos/bigcommerce.svg" href="/connect-bigcommerce" cta="Set it up">
+    Connect with a store API token. Syncs your catalog, cost, customers, and orders.
+  </Card>
+  <Card title="WooCommerce" icon="/logos/woocommerce.svg" href="/connect-woocommerce" cta="Set it up">
+    Connect your WordPress store with a consumer key and secret. Syncs catalog, cost, customers, and
+    orders.
+  </Card>
+</Columns>
 
-More connectors are on the way. Each one feeds the same shared model, so adding a source never
-changes how your pricing behaves.
+All four sync products, cost, customers, and orders, and all four can publish an approved price back
+to the source. Write-back is off until you turn it on.
+
+## Bring your own source
+
+If you run something we don't have a connector for, you can push canonical records to Elastly
+yourself over the ingest API and get the same pricing behaviour.
+
+<Columns cols={2}>
+  <Card title="Custom ERP" icon="server" href="/build-a-connector">
+    Push products, customers, quotes, and orders from any system you run.
+  </Card>
+  <Card title="Custom storefront" icon="store" href="/build-a-connector">
+    Push products, customers, and orders from any storefront.
+  </Card>
+</Columns>
+
+## Coming soon
+
+More connectors are on the way: SAP, Adobe Commerce, Salesforce, QuickBooks, Xero, Sage, and Amazon.
+Each one feeds the same shared model, so adding a source never changes how your pricing behaves. If
+you need one of these now, [tell us](mailto:support@elastly.io) and we'll tell you where it is.
 
 ## How a connection works
 
 <Steps titleSize="h3">
   <Step title="Connect">
-    You authorize Elastly to read from your system. NetSuite is set up once by an administrator with
-    a certificate. Shopify is a one-click approval. Your credentials are stored encrypted and scoped
-    to your workspace.
+    You authorize Elastly to read from your system. Each source is a little different: NetSuite uses a
+    certificate set up by an administrator, Shopify is a one-click approval, BigCommerce uses a store
+    API token, and WooCommerce uses a consumer key and secret. Your credentials are stored encrypted
+    and scoped to your workspace.
   </Step>
   <Step title="Match your fields">
     Elastly reads your source and matches its fields to the ones it prices from, like SKU, cost, and
