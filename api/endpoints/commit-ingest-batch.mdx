@@ -1,0 +1,13 @@
+---
+title: "Commit a batch"
+sidebarTitle: "Commit a batch"
+description: "Commit a staged batch so the sync engine drains it into canonical data."
+openapi: "POST /api/v1/ingest/batches/{batchId}/commit"
+playground: "simple"
+---
+
+<Warning>
+  Committing hands the batch to the sync engine, which writes it into your canonical data. The
+  interactive playground is turned off here so a docs page can never trigger a real ingest. Copy the
+  request and run it against your own workspace.
+</Warning>

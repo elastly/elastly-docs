@@ -1,0 +1,13 @@
+---
+title: "Acknowledge write-backs"
+sidebarTitle: "Acknowledge write-backs"
+description: "Report which leased write-backs applied and which failed."
+openapi: "POST /api/v1/writebacks/ack"
+playground: "simple"
+---
+
+<Warning>
+  Acking closes out real write-back tasks. An ack sent after the lease expired is counted as expired
+  and never applied. The interactive playground is turned off here so a docs page can never close out
+  live work.
+</Warning>

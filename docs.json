@@ -26,12 +26,47 @@
   "styling": {
     "eyebrows": "section"
   },
+  "api": {
+    "playground": {
+      "display": "interactive",
+      "proxy": true
+    },
+    "examples": {
+      "languages": ["bash", "typescript", "python", "php", "java", "go"]
+    }
+  },
   "navigation": {
     "groups": [
       {
         "group": "Getting started",
         "icon": "rocket",
         "pages": ["index", "quickstart"]
+      },
+      {
+        "group": "API reference",
+        "icon": "terminal",
+        "pages": [
+          {
+            "group": "Prices",
+            "icon": "tag",
+            "pages": ["api/endpoints/get-prices"]
+          },
+          {
+            "group": "Ingest",
+            "icon": "arrow-down-to-line",
+            "pages": [
+              "api/endpoints/create-ingest-batch",
+              "api/endpoints/stage-ingest-records",
+              "api/endpoints/commit-ingest-batch",
+              "api/endpoints/get-ingest-batch-status"
+            ]
+          },
+          {
+            "group": "Write-backs",
+            "icon": "arrow-up-from-line",
+            "pages": ["api/endpoints/claim-writebacks", "api/endpoints/ack-writebacks"]
+          }
+        ]
       }
     ]
   },

@@ -1,0 +1,13 @@
+---
+title: "Claim write-backs"
+sidebarTitle: "Claim write-backs"
+description: "Lease pending price write-backs for this connector to apply."
+openapi: "POST /api/v1/writebacks/claim"
+playground: "simple"
+---
+
+<Warning>
+  Claiming leases real work. Every task you claim carries a `leaseUntil`, and your live connector
+  will not receive those write-backs until the lease expires. The interactive playground is turned
+  off here so reading the docs can never take work away from a running connector.
+</Warning>
