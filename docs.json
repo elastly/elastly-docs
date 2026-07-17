@@ -33,21 +33,7 @@
         "icon": "rocket",
         "pages": ["index", "quickstart"]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Dashboard",
-          "href": "https://app.elastly.io",
-          "icon": "gauge"
-        },
-        {
-          "anchor": "Support",
-          "href": "mailto:support@elastly.io",
-          "icon": "envelope"
-        }
-      ]
-    }
+    ]
   },
   "navbar": {
     "links": [
