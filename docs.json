@@ -59,7 +59,8 @@
         "icon": "book-open",
         "pages": [
           "strategies",
-          "guardrails"
+          "guardrails",
+          "explainability"
         ]
       },
       {

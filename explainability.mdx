@@ -1,0 +1,70 @@
+---
+title: "Explainability"
+description: "Every recommendation shows its reasoning, so you can see why before you approve."
+icon: "list-tree"
+---
+
+Handing pricing to a system is only fair if you can see why it decided what it did. No black box is a
+rule Elastly is built around, not a slogan. Every recommendation carries its full reasoning, so you
+can check the number before you trust it.
+
+## What travels with a recommendation
+
+Everything below is computed by the engine, with no language model involved. It is the same data
+whether you read it in the review queue or pull it from the [Prices API](/api/endpoints/get-prices).
+
+| Part           | What it tells you                                                                        |
+| -------------- | ---------------------------------------------------------------------------------------- |
+| Drivers        | Every step that built the price, each with the margin it added or removed, in order.     |
+| Guardrail check | Every limit that was tested, and the one that held the price if any did.                |
+| Confidence     | How much evidence stands behind this price, as a score and a high, medium, or low label. |
+| Stance         | A one-word read on the shape of the decision, like held at floor or held near the last price. |
+| Margins        | The target margin the steps aimed for, and the margin the final price actually realizes.  |
+
+Drivers below about 0.25pp are folded away, so the list stays to the steps that actually mattered.
+
+## How confidence is measured
+
+Confidence is not a guess. It comes from three kinds of evidence, and each one counts for more the
+more of the price it is actually responsible for.
+
+| Evidence   | Grows with                                              |
+| ---------- | ------------------------------------------------------- |
+| Your setup | How much seeded-margin history sits behind the product. |
+| Learning   | How many won and lost quotes Elastly has seen for it.   |
+| Competitor | How many competitor sellers are tracked on it.          |
+
+Each kind saturates on its own: a little evidence lifts it quickly, and more keeps lifting it with
+diminishing returns. The three are then weighted by how much each one moved this particular price. A
+price driven mostly by a well-evidenced part of your setup reads as high confidence; a price leaning
+on a signal with little behind it reads lower. By default a score at or above 0.66 is high and at or
+above 0.33 is medium.
+
+<Note>
+  A guardrail holding the price does not lower confidence. The two are separate: confidence is about
+  evidence, the guardrail check is about limits. A price can be held at its floor and still be high
+  confidence.
+</Note>
+
+## The plain-language summary
+
+On top of the computed reasoning, Elastly can add a short written "why this price." This is the one
+place a language model is involved, and it is optional.
+
+When it is on, Elastly passes the facts it already computed to a small model (Claude Haiku) and asks
+for one or two sentences. The model is held to a strict rule: it may use **only** the facts it was
+given, it can never invent a number or a claim, and if a guardrail capped the price it has to name
+it. It explains the math in plain words. It does not make the decision, and it never sees your data
+beyond the single recommendation it is describing.
+
+The summary is a convenience, not the source of truth. Turning it off changes nothing about how
+prices are set: every driver, the guardrail check, and the confidence are all still there. The
+wording is just terser. If the model is unavailable, the recommendation is unaffected and simply
+arrives without the sentence.
+
+## Where you see it
+
+Open the review queue and expand any recommendation. You get a "why this price" panel with the
+drivers laid out, the guardrail check (flagged if a limit held the price), any competitor context,
+the confidence, and the written summary when it is on. It is the same reasoning whether you are
+approving one price or reviewing a batch, and the same reasoning the API returns on every response.
