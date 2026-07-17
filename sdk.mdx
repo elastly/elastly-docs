@@ -1,0 +1,155 @@
+---
+title: "TypeScript SDK"
+sidebarTitle: "TypeScript"
+description: "Price lines from your own code with a hard deadline and a fallback, so Elastly can never slow down or break your quoting."
+icon: "/logos/typescript.svg"
+---
+
+The `@elastly/sdk` package is the supported way to call Elastly from Node.js. It is not a thin wrapper
+around HTTP. It exists to solve the two problems every integration hits: a price call that must never
+break your quote screen, and a connector that must page, checkpoint, retry, and report without you
+writing any of that.
+
+```bash
+npm install @elastly/sdk
+```
+
+The SDK needs Node 20.3 or later, ships ESM and CommonJS builds, and is fully typed. Its only
+dependency is `@elastly/api-contract`, the same schema package our own servers validate against, so
+the types in your editor cannot drift from the API.
+
+<Info>
+  Building a connector for your own ERP or storefront? Read this page first, then follow
+  [Build your own connector](/build-a-connector).
+</Info>
+
+## Keys and scopes
+
+Create API keys under **Settings → API keys**. Scopes are separate on purpose: a serving key can never
+write your catalog, and a connector key can never read prices.
+
+| Scope         | Used for               | SDK surface                                         |
+| ------------- | ---------------------- | --------------------------------------------------- |
+| **ERP**       | Price serving          | `elastly.prices`                                    |
+| **Connector** | Ingest and write-backs | `elastly.ingest`, `elastly.writebacks`, `defineConnector` |
+
+```ts
+import { Elastly } from "@elastly/sdk"
+
+const elastly = new Elastly({ apiKey: process.env.ELASTLY_API_KEY })
+```
+
+## The one thing to get right: the decision id
+
+Every priced line comes back with a `pricingDecisionId`. **Store it in your own system, on the quote
+line it priced.** When that quote later closes and you send it back to Elastly, the id is how Elastly
+connects what it recommended to what your rep actually did. That difference is what the pricing model
+learns from.
+
+If you skip this, everything still looks like it works. Prices serve, quotes ingest, dashboards fill.
+But the model learns nothing from your quotes, and nothing will tell you. So do it first, before
+anything else:
+
+```ts
+const result = await elastly.prices.get(line, { failOpen })
+
+if (result.source === "elastly") {
+  await erp.updateQuoteLine(quoteLineId, {
+    elastlyPriceCents: result.priceCents,
+    elastlyDecisionId: result.pricingDecisionId,
+  })
+}
+```
+
+## Price a line, with a fallback
+
+A price call usually runs inside a rep's quote screen or a checkout render. If Elastly is slow or down,
+your system must keep working. The SDK makes that a policy you declare, not code you write:
+
+```ts
+import { staticFallback } from "@elastly/sdk"
+
+const failOpen = staticFallback((line) => erp.listPrice(line.productSku), {
+  deadlineMs: 800,
+})
+
+const result = await elastly.prices.get(
+  { customerExternalId: "cust-1042", productSku: "VLV-200", quantity: 25 },
+  { failOpen },
+)
+
+if (result.source === "elastly") {
+  render(result.priceCents, result.reasonSummary, result.explanation)
+} else if (result.source === "fallback") {
+  render(result.priceCents)
+}
+```
+
+Under this policy, a timeout, a 5xx, a rate limit, a malformed body, or a network failure never
+throws. The SDK retries where it can, then calls your fallback and returns `{ source: "fallback" }`
+with the cause attached. If your fallback returns `null`, you get `{ source: "unavailable" }`, an
+explicit typed no-answer.
+
+Three things do throw, on purpose. A `4xx` that means your request is wrong (`invalid_request`,
+`feature_not_enabled`) throws a typed error, because a bug in your integration is not an outage to
+paper over. An exception inside your own fallback surfaces. And the `throwOnFailure()` policy throws on
+everything, for batch jobs where a wrong price is worse than no price.
+
+```ts
+import { throwOnFailure } from "@elastly/sdk"
+
+const results = await elastly.prices.getMany(lines, { failOpen: throwOnFailure() })
+```
+
+`getMany` prices up to 100 lines in one HTTP call. One unknown SKU fails that line alone, never the
+whole batch.
+
+## What the SDK handles for you
+
+Every mutating call carries an idempotency key that stays stable across retries, so a retried price
+call can never double-count against your plan. Retries back off with jitter and honor `Retry-After`.
+After repeated failures a circuit breaker stops hammering Elastly and goes straight to your fallback.
+And every call that falls open reports itself to Elastly's fail-open telemetry (fire and forget, never
+on your latency path), so an outage that hit your quote screen shows up in your dashboard instead of
+staying invisible. A single line that misses inside an otherwise healthy batch is reported too, without
+counting against your serving SLO.
+
+Every error is a typed class carrying the stable error code and the `x-elastly-request-id` of the call,
+so support can find the exact request:
+
+```ts
+import { RateLimitError, UnknownProductError } from "@elastly/sdk"
+
+try {
+  await elastly.prices.get(line, { failOpen: throwOnFailure() })
+} catch (error) {
+  if (error instanceof RateLimitError) console.log(error.retryAfterMs)
+  if (error instanceof UnknownProductError) console.log(error.requestId)
+}
+```
+
+## Verify a webhook
+
+```ts
+const event = elastly.webhooks.verify(rawBody, request.headers["elastly-signature"], secret)
+
+if (event.event === "sync.completed") {
+  console.log(event.data.connector, event.data.totals)
+}
+```
+
+`verify` checks the signature in constant time, rejects anything older than five minutes, and returns
+a typed event. It throws on a bad signature, a replay, or an event type the platform does not emit. The
+four event types are `sync.completed`, `recommendation.created`, `price.written_back`, and
+`test.ping`.
+
+## Versioning
+
+The SDK's major version is bound to the API version in the URL. Every `0.x` and `1.x` release of
+`@elastly/sdk` talks to `/api/v1`. A major release of the SDK is the only thing that ever changes which
+API version an installed integration calls, so an upgrade within a major is always safe.
+
+Prefer another language? The [Python](/sdk-python), [PHP](/sdk-php), [Java](/sdk-java), and
+[Go](/sdk-go) SDKs are generated from the same OpenAPI contract. The TypeScript SDK is the only
+hand-written one, which is why the fail-open policy and connector framework on this page are TypeScript
+only.

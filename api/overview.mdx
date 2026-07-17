@@ -1,0 +1,103 @@
+---
+title: "API overview"
+sidebarTitle: "Overview"
+description: "Authenticate, handle errors, respect the rate limit, and verify webhooks. The details for each endpoint are on its own page."
+icon: "terminal"
+---
+
+The Elastly API serves explainable prices, ingests your canonical data, and hands back approved price
+write-backs. Every endpoint is documented on its own page with a live playground. This page covers
+what is true across all of them.
+
+The base URL is `https://app.elastly.io`. There is no separate sandbox host; you scope access with
+keys instead.
+
+## Authentication
+
+Every request carries a workspace API key as a bearer token. Keys are prefixed `elastly_live_` and are
+created and revoked under **Settings → API keys** in the dashboard. A key is shown once at creation, so
+store it somewhere safe.
+
+```http
+Authorization: Bearer elastly_live_8fK2…
+```
+
+Scopes are separate on purpose, so a key can do exactly one job:
+
+| Scope        | Lets a key                                    |
+| ------------ | --------------------------------------------- |
+| `erp`        | Serve prices.                                 |
+| `connector`  | Ingest canonical data and claim write-backs.  |
+| `storefront` | Serve prices to a storefront.                 |
+
+A serving key can never write your catalog, and a connector key can never read prices. Use a separate
+key per environment so you can rotate one without touching the other.
+
+<Warning>
+  **Treat a key like a password.** Never expose an `elastly_live_` key in client-side code. If a key
+  leaks, revoke it in the dashboard and issue a new one.
+</Warning>
+
+## Rate limits
+
+Price serving is rate-limited per workspace with a token bucket: roughly **100 requests every 10
+seconds** sustained, bursting to **120**. A rep adding lines fires a short burst well under the
+ceiling; sustained abuse is capped at the refill rate. Exceeding the limit returns `429` with a
+`Retry-After`, so back off when you see it. When the limiter itself is unreachable it fails open, so
+pricing is never blocked by the limiter.
+
+## Errors
+
+Elastly uses conventional HTTP status codes. `2xx` is success, `4xx` a problem with your request, and
+`5xx` a rare error on our side. Every error body includes a machine-readable message.
+
+| Status | Meaning                                                                 |
+| ------ | ----------------------------------------------------------------------- |
+| `401`  | Missing or invalid API key.                                             |
+| `402`  | Subscription inactive. The body includes a `reason`.                    |
+| `403`  | The key is valid but lacks the scope for this endpoint.                 |
+| `404`  | The customer or product could not be resolved.                          |
+| `409`  | An idempotency conflict, or a batch state that doesn't allow the action. |
+| `422`  | The request body failed validation. The body includes the issues.      |
+| `429`  | Rate limit exceeded. Back off using `Retry-After`.                      |
+| `500`  | Something went wrong on our end. Retry with backoff.                    |
+
+Money is always integer cents. The engine never does floating-point math on money, and neither should
+you when you read a response.
+
+## Idempotency
+
+Every mutating call takes an `Idempotency-Key`. Use a fresh key for each logical request, and reuse the
+same key when you retry, so a retried call is served from the stored response and never acts twice. The
+SDKs set this for you.
+
+## Webhooks
+
+Subscribe an endpoint under **Settings → Webhooks** and Elastly `POST`s a signed JSON payload when
+something happens. There are four event types:
+
+| Event                    | Fires when                                          |
+| ------------------------ | --------------------------------------------------- |
+| `recommendation.created` | A new price recommendation is ready to review.      |
+| `price.written_back`     | An approved price was written back to a connected system. |
+| `sync.completed`         | A connector sync finished.                          |
+| `test.ping`              | A test event you trigger from the dashboard.        |
+
+### Verifying the signature
+
+Each delivery carries an `elastly-signature` header in the form `t=<unix>,v1=<hmac>`, where the HMAC is
+SHA-256 over the string `<t>.<body>` keyed with your endpoint's signing secret (prefixed `whsec_`).
+Recompute it to confirm authenticity, and reject deliveries whose timestamp is outside your tolerance
+to guard against replays.
+
+```http
+elastly-signature: t=1751446440,v1=5257a869…
+```
+
+The [TypeScript SDK](/sdk) verifies this for you in one call.
+
+## Versioning
+
+The API is versioned in the URL: every endpoint lives under `/api/v1`. A new major version would live
+at a new path, so an integration pinned to `/api/v1` keeps working unchanged. The SDKs bind their major
+version to the API version, so an upgrade within a major is always safe.

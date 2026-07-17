@@ -1,0 +1,75 @@
+---
+title: "Python SDK"
+sidebarTitle: "Python"
+description: "Call the Elastly pricing API from Python. Price lines, ingest your catalog, and claim write-backs with a fully typed client generated from the same contract our servers validate against."
+icon: "/logos/python.svg"
+---
+
+The `elastly` package is the supported way to call Elastly from Python. It is generated from the same [OpenAPI contract](/api/overview) our own servers validate against, so the request and response types in your editor cannot drift from the API. It covers the full v1 surface: pricing, ingest, and write-backs.
+
+```bash
+pip install elastly
+```
+
+Python 3.9 or later.
+
+## Keys and scopes
+
+Create API keys under **Settings → API keys**. Scopes are separate on purpose: an ERP key prices lines, a connector key ingests data and claims write-backs. A serving key can never write your catalog, and a connector key can never read prices. Pass the key as a bearer token on the `Configuration`.
+
+```python
+import elastly
+
+configuration = elastly.Configuration(access_token="elastly_live_...")
+```
+
+## Price a line
+
+`get_prices` takes up to 100 lines in one call. Each response line is either a priced result or a typed per-line error, so one unknown SKU fails that line alone and never the whole batch.
+
+```python
+import uuid
+import elastly
+
+configuration = elastly.Configuration(access_token="elastly_live_...")
+
+with elastly.ApiClient(configuration) as api_client:
+    prices = elastly.PricesApi(api_client)
+
+    response = prices.get_prices(
+        idempotency_key=str(uuid.uuid4()),
+        prices_request=elastly.PricesRequest(
+            lines=[
+                elastly.PricesRequestLinesInner(
+                    product_sku="SKU-1042",
+                    customer_external_id="CUST-88",
+                    quantity=25,
+                )
+            ]
+        ),
+    )
+
+    for line in response.lines:
+        result = line.actual_instance
+        if result.ok:
+            print(result.price_cents, result.currency, result.reason_summary)
+        else:
+            print("failed:", result.code, result.message)
+```
+
+Every priced call needs an `Idempotency-Key`. Use a fresh key for each logical request and reuse the same key when you retry, so a retried call is served from the stored response and never prices twice.
+
+## The one thing to get right: the decision id
+
+Every priced line comes back with a `pricing_decision_id`. Store it in your own system, on the quote line it priced. When that quote later closes and you send it back to Elastly, the id is how Elastly connects what it recommended to what your rep actually did. That difference is what the pricing model learns from.
+
+<Info>
+  Skip this and everything still looks like it works: prices serve, quotes ingest, dashboards fill. But the model learns nothing from your quotes, and nothing will tell you. Persist the decision id first, before anything else.
+</Info>
+
+## Next steps
+
+- [Prices, ingest, and write-backs](/api/overview) in the API reference
+- [Build your own connector](/build-a-connector) for a homegrown ERP or storefront
+
+The source is on [GitHub](https://github.com/elastly/elastly-python). It is generated, so file an issue rather than a pull request against generated code.

@@ -75,9 +75,21 @@
         ]
       },
       {
+        "group": "SDKs",
+        "icon": "code",
+        "pages": [
+          "sdk",
+          "sdk-python",
+          "sdk-php",
+          "sdk-java",
+          "sdk-go"
+        ]
+      },
+      {
         "group": "API reference",
         "icon": "terminal",
         "pages": [
+          "api/overview",
           {
             "group": "Prices",
             "icon": "tag",
