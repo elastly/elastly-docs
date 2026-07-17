@@ -1,0 +1,67 @@
+---
+title: "Connectors"
+description: "Sync your ERP or store into the one model Elastly prices from, so your data stays current on its own."
+icon: "plug"
+---
+
+import { ConnectorCard, ConnectorCards } from "/snippets/connector-card.jsx"
+
+A connector is a live link between your system of record and Elastly. Once it's set up, Elastly keeps
+your products, costs, customers, and sales in sync on a schedule. You don't export anything or upload
+files. Your data stays current on its own.
+
+Every connector feeds the same shared model: products, costs, prices, customers, and sales. Because
+everything lands in that one shape, your strategies and guardrails work the same way no matter where
+the data came from.
+
+## Available today
+
+<ConnectorCards>
+  <ConnectorCard
+    provider="netsuite"
+    name="Oracle NetSuite"
+    kind="ERP"
+    href="/connect-netsuite"
+    summary="Sync your catalog, costs, inventory, customers, quotes, and realized sales orders straight from NetSuite. Set up once by an administrator."
+    syncs={["Products & cost", "Inventory", "Customers", "Quotes", "Orders"]}
+    note="Can also show Elastly's price live on a NetSuite quote line."
+  />
+  <ConnectorCard
+    provider="shopify"
+    name="Shopify"
+    kind="E-commerce"
+    href="/connect-shopify"
+    summary="A one-click install. Approve read-only access and Elastly syncs your catalog at the variant level, plus cost, inventory, customers, and orders."
+    syncs={["Products & cost", "Inventory", "Customers", "Orders"]}
+    note="Read-only. Elastly never changes anything in your store."
+  />
+</ConnectorCards>
+
+More connectors are on the way. Each one feeds the same shared model, so adding a source never
+changes how your pricing behaves.
+
+## How a connection works
+
+<Steps titleSize="h3">
+  <Step title="Connect">
+    You authorize Elastly to read from your system. NetSuite is set up once by an administrator with
+    a certificate. Shopify is a one-click approval. Your credentials are stored encrypted and scoped
+    to your workspace.
+  </Step>
+  <Step title="Match your fields">
+    Elastly reads your source and matches its fields to the ones it prices from, like SKU, cost, and
+    category. It suggests the mapping for you, and you can adjust anything that's specific to your
+    account. See [Field mapping](/field-mapping).
+  </Step>
+  <Step title="Sync on a schedule">
+    The first sync pulls everything. After that, each run only fetches what changed, so it stays
+    quick. Every run is recorded (what was seen, what was updated, any errors), so a problem is
+    visible instead of silent.
+  </Step>
+</Steps>
+
+<Note>
+  **Who owns what.** Your system of record owns cost, catalog, customers, and sales. Elastly owns the
+  recommended price. Your store or ERP owns the live price a customer pays. A connector only fills
+  Elastly's model. It never changes a price you haven't approved.
+</Note>

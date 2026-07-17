@@ -40,7 +40,7 @@
       {
         "group": "Getting started",
         "icon": "rocket",
-        "pages": ["index", "quickstart"]
+        "pages": ["index", "quickstart", "connectors"]
       },
       {
         "group": "API reference",
