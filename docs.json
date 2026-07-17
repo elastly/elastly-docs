@@ -55,6 +55,13 @@
         ]
       },
       {
+        "group": "Concepts",
+        "icon": "book-open",
+        "pages": [
+          "strategies"
+        ]
+      },
+      {
         "group": "API reference",
         "icon": "terminal",
         "pages": [

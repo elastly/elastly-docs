@@ -1,0 +1,176 @@
+---
+title: "Pricing strategies"
+description: "How Elastly builds each price as a readable stack of steps, and how you shape it with strategies."
+icon: "sliders"
+---
+
+Elastly builds every price the same way: it starts from your cost and adds margin in named steps.
+Add the steps up, apply them to cost, and that is the price. Nothing is a black box, and a strategy
+is a way to add your own steps for the products you choose.
+
+Every step is a signed adjustment in percentage points, so the steps simply add up. A bigger order
+can pull the margin down at the same time a rising cost is nudging it up. The price reflects the
+total, not one factor at a time.
+
+## The order a price is built in
+
+<Steps titleSize="h3">
+  <Step title="Your base margins">
+    The margins you set. Elastly picks the most specific one that applies.
+  </Step>
+  <Step title="What Elastly derives">
+    Signals read from the order and your data, like a rising cost or a large order.
+  </Step>
+  <Step title="The learned adjustment">
+    A small correction from what actually sold.
+  </Step>
+  <Step title="Your strategies">
+    Your own rules, applied on top.
+  </Step>
+  <Step title="Your guardrails">
+    The limits that clamp whatever the steps above produced.
+  </Step>
+</Steps>
+
+## Your base margins
+
+These are the margins you configure. Category margin is the starting markup over cost; the rest are
+signed adjustments on top.
+
+| Margin              | Scope         | What it does                                    |
+| ------------------- | ------------- | ----------------------------------------------- |
+| Category margin     | Category      | Starting markup over cost, per product category. |
+| Brand override      | Brand         | A signed adjustment for a brand.                |
+| Segment adjustment  | Segment       | For example, dealer +5pp.                       |
+| Region adjustment   | Region        | For example, West Africa −6pp.                  |
+| Country adjustment  | Country       | For example, Saudi Arabia +1.2pp.               |
+| Payment terms       | Credit terms  | For example, cash −2pp.                         |
+
+<Note>
+  **The most specific setting wins.** For any one margin, Elastly picks a single value using this
+  order: an exact value, then category and brand together, then brand, then category, then segment,
+  then country, then region, and finally your global default. Setting a margin for one category does
+  not stack with your global default, it replaces it.
+</Note>
+
+## What Elastly derives
+
+These steps come from the order in front of it and the data it has synced. Each is off until you
+configure it, and each contributes only when its signal is actually present.
+
+| Step             | Moves the margin when                                            |
+| ---------------- | ---------------------------------------------------------------- |
+| Cost trend       | Your cost is rising, so your margin doesn't quietly erode.        |
+| Demand           | Demand for the product is picking up or cooling off.             |
+| Demand response  | The product's own response to recent price moves.                |
+| Volume           | The customer buys at a volume that earns a different margin.     |
+| Order value      | The order is large in money terms.                               |
+| Order quantity   | The order is large in units.                                     |
+| Stock level      | Stock is unusually high or low.                                  |
+| Stock age        | Stock has been sitting, or has just arrived.                     |
+| Delivery urgency | The customer wants it faster.                                    |
+
+## A worked example
+
+Cost is $1.00. The numbers are illustrative.
+
+| Step                       | Adjustment |
+| -------------------------- | ---------- |
+| Category margin (bearings) | +30%       |
+| Segment adjustment (dealer) | +5%       |
+| Region adjustment (West Africa) | −6%   |
+| Cost trend (rising)        | +1%        |
+| Learned adjustment         | +0.5%      |
+| **Target margin**          | **30.5%**  |
+| **Price** (after rounding) | **$1.30**  |
+
+Because a price is a sum of named steps, Elastly can always tell you exactly why a number is what it
+is. That is the whole point of the model. See [Explainability](/explainability).
+
+## What a strategy is
+
+A strategy is a rule you add on top to shape pricing for a set of products. It has three parts:
+**scope** (which products and customers it covers), **conditions** (when it should act), and an
+**action** (what to do).
+
+### Actions
+
+| Action       | What it does                                          |
+| ------------ | ----------------------------------------------------- |
+| Raise        | Add margin.                                            |
+| Mark down    | Take margin off.                                       |
+| Target       | Move the price toward a margin you name.              |
+| Hold         | Keep the current price and protect it from moving.    |
+| Match        | Price level with a tracked competitor.                |
+| Beat         | Price under a tracked competitor.                     |
+| Premium      | Price above a tracked competitor.                     |
+
+Match, beat, and premium need a competitor source connected before they can act.
+
+### Conditions
+
+A strategy acts only when its conditions hold. You can test current margin, last margin, order
+quantity, payment terms, delivery speed, stock state, days of inventory, price band, whether the
+product is a known value item, the gap to a competitor, how many sellers are on it, demand, and
+elasticity. You can also test any custom attribute you have mapped.
+
+### Scope
+
+Scope narrows a strategy to the products and customers you mean: brand, price band, price, current
+margin, last margin, known value items, channel, region, country, and payment terms, plus your own
+mapped attributes.
+
+<Note>
+  **A strategy can tighten, never loosen.** A strategy can make four guardrails stricter for its
+  products: the margin floor, the margin ceiling, rounding, and how far a price may move from its
+  last one. It can never make any of them looser, and it cannot touch your other guardrails at all.
+  See [Guardrails & rules](/guardrails).
+</Note>
+
+A strategy adds its own steps on top of the base price. It never throws the price away and starts
+over, so a price stays just as readable with a strategy as without one.
+
+## It learns from real sales
+
+When a quote is won or lost, Elastly nudges the margin for that customer and product by a small,
+capped amount. One order never swings a price, but thousands steer it.
+
+The steps are deliberately small:
+
+| Rule                | Default                                                        |
+| ------------------- | -------------------------------------------------------------- |
+| Step size           | 0.30pp per observation.                                        |
+| Largest single step | 0.50pp, no matter what the evidence says.                      |
+| Total cap           | ±5pp. The learned adjustment can never move a margin further.  |
+
+Elastly also keeps track of the highest margin a customer has accepted and the lowest they have
+rejected, and holds the learned offset between the two. It squeezes toward what you know rather than
+guessing past it.
+
+### It learns at the most specific level it can
+
+Learning is keyed to the narrowest scope with evidence behind it:
+
+1. Customer and item
+2. Customer and subcategory
+3. Segment and subcategory
+4. Segment and category
+
+A brand new customer benefits from what the segment already learned, and a customer you sell to often
+gets a correction specific to them.
+
+<Note>
+  **A loss only counts as "too expensive" if you could have supplied it.** If the item was out of
+  stock when the quote was lost, the loss had nothing to do with price, and Elastly ignores it
+  completely rather than lowering your margin for it.
+</Note>
+
+An adjustment also has to earn its place. Confidence grows with the number of observations, and a
+learned offset stays out of the price until there is enough evidence behind it, which is roughly four
+observations at the default setting.
+
+## Guardrails always apply
+
+Whatever the steps add up to, the price passes through your guardrails before you ever see it. The
+steps set the target; the guardrails decide the final number, and the recommendation tells you which
+one had the final say. See [Guardrails & rules](/guardrails).
