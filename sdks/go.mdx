@@ -13,7 +13,7 @@ go get github.com/elastly/elastly-go@latest
 
 ## Keys and scopes
 
-Create API keys under **Settings → API keys**. Scopes are separate on purpose: an ERP key prices lines, a connector key ingests data and claims write-backs. A serving key can never write your catalog, and a connector key can never read prices. Pass the key as a bearer token through the request context.
+Create API keys under [Settings → API keys](https://app.elastly.io/settings). Scopes are separate on purpose: an ERP key prices lines, a connector key ingests data and claims write-backs. A serving key can never write your catalog, and a connector key can never read prices. Pass the key as a bearer token through the request context.
 
 ```go
 ctx := context.WithValue(context.Background(), elastly.ContextAccessToken, "elastly_live_...")

@@ -19,8 +19,8 @@ the loop underneath it is the same REST every language uses.
 
 ## Before you start
 
-1. Connect **Custom ERP** or **Custom Storefront** under **Integrations**.
-2. Create a **Connector** API key under **Settings → API keys**. Ingest and write-backs need this
+1. Connect **Custom ERP** or **Custom Storefront** under [Integrations](https://app.elastly.io/integrations).
+2. Create a **Connector** API key under [Settings → API keys](https://app.elastly.io/settings). Ingest and write-backs need this
    scope; an ERP key will not work.
 3. If you also serve prices, create a separate **ERP** key. One key holds one scope.
 
@@ -165,7 +165,7 @@ console.log(report.status, report.staged, report.warnings)
 One call runs the whole ingest: it opens a staged batch, pages every entity you implement in the right
 order (products, then customers, then quotes, then orders, so a quote never arrives before its
 customer), commits, and waits until Elastly has drained the batch. Progress lands in your dashboard
-under **Integrations** like any native connector.
+under [Integrations](https://app.elastly.io/integrations) like any native connector.
 
 Checkpoints make the run crash-safe. The cursor is saved after every page, so a process that dies
 mid-sync resumes where it stopped instead of starting over, and re-sent pages are deduplicated on your
@@ -198,14 +198,14 @@ acknowledge work that outlived it, so two connectors never work the same task at
 at-least-once, though. A task that could not be acknowledged returns to the queue and will reach
 `applyPrice` again, so make your write idempotent: setting the same price twice should be harmless, and
 it usually is. A task that fails is retried on a later drain and parked after five attempts, where you
-can see it under **Integrations**.
+can see it under [Integrations](https://app.elastly.io/integrations).
 
 ## Prove the loop is closed
 
 After your first full sync, check three things in the dashboard:
 
 1. **Products** shows your catalog with costs.
-2. **Integrations** shows the sync run with the counts you expect.
+2. [Integrations](https://app.elastly.io/integrations) shows the sync run with the counts you expect.
 3. After a few closed quotes flow in, the pricing dashboards start attributing wins and losses to
    prices. That is the learning loop working.
 
