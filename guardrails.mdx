@@ -33,16 +33,9 @@ Price floor, price ceiling, and MAP can come straight from your source as `floor
 Guardrails do not fight each other. They collapse into one floor and one ceiling, and the strictest
 always wins.
 
-<Columns cols={2}>
-  <Card title="The floor is the highest of" icon="arrow-up-from-bracket">
-    Minimum margin, price floor, MAP, and the bottom of the competitor band. Whichever sits highest
-    is the floor.
-  </Card>
-  <Card title="The ceiling is the lowest of" icon="arrow-down-to-bracket">
-    Maximum margin, price ceiling, and the top of the competitor band. Whichever sits lowest is the
-    ceiling.
-  </Card>
-</Columns>
+<Frame caption="Every floor rule collapses to the highest; every ceiling rule to the lowest. The price is free to move between them.">
+  <img src="/art/guardrails-collapse.png" alt="Floor is the highest of MAP, price floor, competitor band low, and minimum margin. Ceiling is the lowest of price ceiling, competitor band high, and maximum margin. The price moves in the allowed range between them." />
+</Frame>
 
 When two limits land on exactly the same number, Elastly names the more specific one as the reason.
 MAP is named first, then price floor, then competitor distance, then minimum margin. If MAP and your

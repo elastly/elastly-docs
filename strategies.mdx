@@ -72,17 +72,12 @@ configure it, and each contributes only when its signal is actually present.
 
 ## A worked example
 
-Cost is $1.00. The numbers are illustrative.
+Every step is a signed adjustment on cost, and they add up to the target margin. The numbers here are
+illustrative.
 
-| Step                       | Adjustment |
-| -------------------------- | ---------- |
-| Category margin (bearings) | +30%       |
-| Segment adjustment (dealer) | +5%       |
-| Region adjustment (West Africa) | −6%   |
-| Cost trend (rising)        | +1%        |
-| Learned adjustment         | +0.5%      |
-| **Target margin**          | **30.5%**  |
-| **Price** (after rounding) | **$1.30**  |
+<Frame caption="Each step is one signed adjustment. They add up to the target margin, then the price is rounded.">
+  <img src="/art/margin-stack.png" alt="A price built from cost $1.00: category margin +30%, segment +5%, region −6%, cost trend +1%, learned +0.5%, target margin 30.5%, price $1.30." />
+</Frame>
 
 Because a price is a sum of named steps, Elastly can always tell you exactly why a number is what it
 is. That is the whole point of the model. See [Explainability](/explainability).

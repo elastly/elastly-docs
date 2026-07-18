@@ -1,0 +1,50 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="_base.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@500;600&display=swap" rel="stylesheet">
+<script src="_measure.js"></script>
+<style>
+  .stage { padding: 44px; }
+  .card { width: 620px; background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 30px 32px; }
+  .head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+  .head .lab { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: var(--ink-400); }
+  .head .cost { font-family: "Geist Mono", ui-monospace, monospace; font-size: 15px; color: var(--ink-600); font-weight: 500; }
+  .row { display: grid; grid-template-columns: 210px 1fr 62px; align-items: center; gap: 14px; padding: 9px 0; }
+  .row .name { font-size: 15px; color: var(--ink); }
+  .row .name small { color: var(--ink-400); }
+  .track { height: 12px; background: #f4f4f6; border-radius: 6px; position: relative; }
+  .bar { position: absolute; top: 0; height: 12px; border-radius: 6px; }
+  .bar.pos { background: var(--brand); left: 50%; }
+  .bar.neg { background: var(--gold); }
+  .mid { position: absolute; left: 50%; top: -3px; width: 1px; height: 18px; background: var(--line-strong, #dcdce2); }
+  .val { font-family: "Geist Mono", ui-monospace, monospace; font-size: 14px; font-weight: 600; text-align: right; }
+  .val.pos { color: var(--brand); }
+  .val.neg { color: var(--gold-strong, #c77f10); }
+  .rule { height: 1px; background: var(--line); margin: 14px 0; }
+  .total { display: grid; grid-template-columns: 210px 1fr 62px; align-items: center; gap: 14px; }
+  .total .name { font-size: 16px; font-weight: 700; }
+  .total .val { font-size: 16px; font-weight: 700; color: var(--ink); }
+  .price { margin-top: 16px; background: var(--brand-50); border: 1px solid var(--brand-100); border-radius: 14px; padding: 14px 18px; display: flex; justify-content: space-between; align-items: center; }
+  .price .k { font-size: 14px; color: var(--ink-600); }
+  .price .v { font-family: "Geist Mono", ui-monospace, monospace; font-size: 22px; font-weight: 700; color: var(--brand); }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="card">
+    <div class="head"><span class="lab">How the price is built</span><span class="cost">Cost $1.00</span></div>
+    <div class="row"><div class="name">Category margin <small>bearings</small></div><div class="track"><div class="mid"></div><div class="bar pos" style="width:42%"></div></div><div class="val pos">+30%</div></div>
+    <div class="row"><div class="name">Segment <small>dealer</small></div><div class="track"><div class="mid"></div><div class="bar pos" style="width:7%"></div></div><div class="val pos">+5%</div></div>
+    <div class="row"><div class="name">Region <small>West Africa</small></div><div class="track"><div class="mid"></div><div class="bar neg" style="width:8.4%; left:41.6%"></div></div><div class="val neg">&minus;6%</div></div>
+    <div class="row"><div class="name">Cost trend <small>rising</small></div><div class="track"><div class="mid"></div><div class="bar pos" style="width:1.4%"></div></div><div class="val pos">+1%</div></div>
+    <div class="row"><div class="name">Learned adjustment</div><div class="track"><div class="mid"></div><div class="bar pos" style="width:0.7%"></div></div><div class="val pos">+0.5%</div></div>
+    <div class="rule"></div>
+    <div class="total"><div class="name">Target margin</div><div></div><div class="val">30.5%</div></div>
+    <div class="price"><span class="k">Price, after rounding</span><span class="v">$1.30</span></div>
+  </div>
+</div>
+</body>
+</html>
