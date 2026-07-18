@@ -43,54 +43,64 @@
     }
   },
   "navigation": {
-    "groups": [
+    "tabs": [
       {
-        "group": "Getting started",
-        "icon": "rocket",
-        "pages": [
-          "index",
-          "quickstart",
-          "connectors",
-          "field-mapping"
-        ]
-      },
-      {
-        "group": "Concepts",
+        "tab": "Guides",
         "icon": "book-open",
-        "pages": [
-          "strategies",
-          "guardrails",
-          "explainability"
+        "groups": [
+          {
+            "group": "Getting started",
+            "pages": [
+              "index",
+              "quickstart",
+              "connectors",
+              "field-mapping"
+            ]
+          },
+          {
+            "group": "Concepts",
+            "pages": [
+              "strategies",
+              "guardrails",
+              "explainability"
+            ]
+          },
+          {
+            "group": "Integrations",
+            "pages": [
+              "connect-netsuite",
+              "connect-shopify",
+              "connect-bigcommerce",
+              "connect-woocommerce",
+              "connect-salla"
+            ]
+          }
         ]
       },
       {
-        "group": "Integrations",
-        "icon": "plug",
-        "pages": [
-          "connect-netsuite",
-          "connect-shopify",
-          "connect-bigcommerce",
-          "connect-woocommerce",
-          "connect-salla",
-          "build-a-connector"
-        ]
-      },
-      {
-        "group": "SDKs",
+        "tab": "SDKs",
         "icon": "code",
-        "pages": [
-          "sdk",
-          "sdk-python",
-          "sdk-php",
-          "sdk-java",
-          "sdk-go"
+        "groups": [
+          {
+            "group": "SDKs",
+            "pages": [
+              "sdks",
+              "sdk",
+              "build-a-connector"
+            ]
+          }
         ]
       },
       {
-        "group": "API reference",
+        "tab": "API reference",
         "icon": "terminal",
-        "pages": [
-          "api/overview",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "api/overview"
+            ]
+          },
           {
             "group": "Prices",
             "icon": "tag",
@@ -150,5 +160,23 @@
       "github": "https://github.com/elastly",
       "linkedin": "https://www.linkedin.com/company/elastly"
     }
-  }
+  },
+  "redirects": [
+    {
+      "source": "/sdk-python",
+      "destination": "/sdks"
+    },
+    {
+      "source": "/sdk-php",
+      "destination": "/sdks"
+    },
+    {
+      "source": "/sdk-java",
+      "destination": "/sdks"
+    },
+    {
+      "source": "/sdk-go",
+      "destination": "/sdks"
+    }
+  ]
 }

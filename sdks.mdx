@@ -1,0 +1,241 @@
+---
+title: "Using the SDKs"
+sidebarTitle: "Using the SDKs"
+description: "Install a client, authenticate, and price a line in your language. One typed client per language, generated from the same contract our servers validate against."
+icon: "code"
+---
+
+Elastly ships a typed client for five languages. Four are generated from the same
+[OpenAPI contract](/api/overview) our servers validate against, so their types cannot drift from the
+API. The TypeScript SDK is hand-written and does more, which the [TypeScript SDK](/sdk) page covers.
+
+Pick your language once. Every tab below is the same three steps: install, authenticate, price a line.
+
+## Install
+
+<CodeGroup>
+
+```bash npm
+npm install @elastly/sdk
+```
+
+```bash pip
+pip install elastly
+```
+
+```bash composer
+composer require elastly/elastly-php
+```
+
+```xml Maven
+<dependency>
+  <groupId>io.elastly</groupId>
+  <artifactId>elastly-sdk</artifactId>
+  <version>0.1.1</version>
+</dependency>
+```
+
+```bash Go
+go get github.com/elastly/elastly-go@latest
+```
+
+</CodeGroup>
+
+Minimum versions: Node 20.3, Python 3.9, PHP 8.1, Java 8, and a recent Go. The Java artifact is also
+available for Gradle as `implementation 'io.elastly:elastly-sdk:0.1.1'`.
+
+## Authenticate
+
+Create API keys under **Settings → API keys**. Scopes are separate on purpose: an **ERP** key prices
+lines, a **Connector** key ingests data and claims write-backs. A serving key can never write your
+catalog, and a connector key can never read prices. Send the key as a bearer token.
+
+<CodeGroup>
+
+```ts TypeScript
+import { Elastly } from "@elastly/sdk"
+
+const elastly = new Elastly({ apiKey: process.env.ELASTLY_API_KEY })
+```
+
+```python Python
+import elastly
+
+configuration = elastly.Configuration(access_token="elastly_live_...")
+```
+
+```php PHP
+$config = Elastly\Configuration::getDefaultConfiguration()
+    ->setAccessToken('elastly_live_...');
+```
+
+```java Java
+ApiClient client = Configuration.getDefaultApiClient();
+client.setBearerToken("elastly_live_...");
+```
+
+```go Go
+ctx := context.WithValue(context.Background(), elastly.ContextAccessToken, "elastly_live_...")
+```
+
+</CodeGroup>
+
+## Price a line
+
+You price up to 100 lines in one call. Each response line is either a priced result or a typed per-line
+error, so one unknown SKU fails that line alone and never the whole batch. Every priced call takes an
+`Idempotency-Key`: use a fresh one per logical request, and reuse it when you retry, so a retried call
+is served from the stored response and never prices twice.
+
+<CodeGroup>
+
+```ts TypeScript
+const result = await elastly.prices.get(
+  { customerExternalId: "CUST-88", productSku: "SKU-1042", quantity: 25 },
+  { failOpen: throwOnFailure() },
+)
+
+if (result.source === "elastly") {
+  console.log(result.priceCents, result.currency, result.reasonSummary)
+}
+```
+
+```python Python
+import uuid
+import elastly
+
+with elastly.ApiClient(configuration) as api_client:
+    prices = elastly.PricesApi(api_client)
+    response = prices.get_prices(
+        idempotency_key=str(uuid.uuid4()),
+        prices_request=elastly.PricesRequest(
+            lines=[
+                elastly.PricesRequestLinesInner(
+                    product_sku="SKU-1042", customer_external_id="CUST-88", quantity=25
+                )
+            ]
+        ),
+    )
+    for line in response.lines:
+        result = line.actual_instance
+        if result.ok:
+            print(result.price_cents, result.currency, result.reason_summary)
+        else:
+            print("failed:", result.code, result.message)
+```
+
+```php PHP
+$prices = new Elastly\Api\PricesApi(null, $config);
+
+$line = (new Elastly\Model\PricesRequestLinesInner())
+    ->setProductSku('SKU-1042')
+    ->setCustomerExternalId('CUST-88')
+    ->setQuantity(25);
+
+$request = (new Elastly\Model\PricesRequest())->setLines([$line]);
+$response = $prices->getPrices(bin2hex(random_bytes(16)), $request);
+
+foreach ($response->getLines() as $result) {
+    if ($result->getOk()) {
+        echo $result->getPriceCents() . ' ' . $result->getCurrency() . PHP_EOL;
+    } else {
+        echo 'failed: ' . $result->getMessage() . PHP_EOL;
+    }
+}
+```
+
+```java Java
+PricesApi prices = new PricesApi(client);
+
+PricesRequestLinesInner line = new PricesRequestLinesInner()
+    .productSku("SKU-1042")
+    .customerExternalId("CUST-88")
+    .quantity(new BigDecimal(25));
+
+PricesResponse response = prices.getPrices(
+    UUID.randomUUID().toString(),
+    new PricesRequest().lines(Arrays.asList(line)));
+
+for (PricesResponseLinesInner l : response.getLines()) {
+    Object result = l.getActualInstance();
+    if (result instanceof PricesResponseLinesInnerOneOf priced) {
+        System.out.println(priced.getPriceCents() + " " + priced.getCurrency());
+    }
+}
+```
+
+```go Go
+line := *elastly.NewPricesRequestLinesInner()
+line.SetProductSku("SKU-1042")
+line.SetCustomerExternalId("CUST-88")
+line.SetQuantity(25)
+
+request := elastly.NewPricesRequest([]elastly.PricesRequestLinesInner{line})
+
+response, _, err := client.PricesAPI.GetPrices(ctx).
+    IdempotencyKey("one-key-per-logical-request").
+    PricesRequest(*request).
+    Execute()
+if err != nil {
+    log.Fatal(err)
+}
+
+for _, l := range response.Lines {
+    if priced := l.PricesResponseLinesInnerOneOf; priced != nil {
+        fmt.Println(priced.PriceCents, priced.Currency, priced.ReasonSummary)
+    }
+}
+```
+
+</CodeGroup>
+
+## The one thing to get right: the decision id
+
+Every priced line comes back with a `pricingDecisionId`. **Store it in your own system, on the quote
+line it priced.** When that quote later closes and you send it back to Elastly, the id is how Elastly
+ties what it recommended to what your rep actually did. That difference is what the pricing model learns
+from.
+
+Skip it and everything still looks like it works: prices serve, quotes ingest, dashboards fill. But the
+model learns nothing from your quotes, and nothing will tell you. Persist the decision id first, before
+anything else.
+
+## Where each SDK lives
+
+<Columns cols={2}>
+  <Card title="TypeScript" icon="/logos/typescript.svg" href="https://github.com/elastly/elastly-sdk">
+    `@elastly/sdk` on npm. Hand-written, with fail-open and the connector framework.
+  </Card>
+  <Card title="Python" icon="/logos/python.svg" href="https://github.com/elastly/elastly-python">
+    `elastly` on PyPI. Generated.
+  </Card>
+  <Card title="PHP" icon="/logos/php.svg" href="https://github.com/elastly/elastly-php">
+    `elastly/elastly-php` on Packagist. Generated.
+  </Card>
+  <Card title="Java" icon="/logos/java.svg" href="https://github.com/elastly/elastly-java">
+    `io.elastly:elastly-sdk` on Maven Central. Generated.
+  </Card>
+  <Card title="Go" icon="/logos/go.svg" href="https://github.com/elastly/elastly-go">
+    `github.com/elastly/elastly-go`. Generated.
+  </Card>
+</Columns>
+
+The generated SDKs are built from the contract, so file an issue rather than a pull request against
+generated code.
+
+## Next steps
+
+<Columns cols={2}>
+  <Card title="TypeScript SDK" icon="bolt" href="/sdk">
+    Fail-open pricing, retries, typed errors, and webhook verification. TypeScript only.
+  </Card>
+  <Card title="Build a connector" icon="wrench" href="/build-a-connector">
+    Push your own ERP or storefront to Elastly with the connector framework.
+  </Card>
+  <Card title="API reference" icon="terminal" href="/api/overview">
+    Authentication, rate limits, errors, and the live endpoint playground.
+  </Card>
+  <Card title="Ingest" icon="arrow-down-to-line" href="/api/ingest">
+    Push products, customers, quotes, and orders in batches you control.
+  </Card>
+</Columns>
