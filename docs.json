@@ -71,6 +71,7 @@
           "connect-shopify",
           "connect-bigcommerce",
           "connect-woocommerce",
+          "connect-salla",
           "build-a-connector"
         ]
       },

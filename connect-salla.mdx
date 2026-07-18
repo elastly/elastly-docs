@@ -1,0 +1,101 @@
+---
+title: "Connecting Salla"
+sidebarTitle: "Salla"
+description: "Connect your Salla store to Elastly in one click. Approve access once and it syncs your catalog, cost, stock, customers, and realized orders."
+icon: "/logos/salla.svg"
+---
+
+Elastly reads your catalog, per-item cost, stock, customers, and realized orders from Salla over the
+Salla Merchant API. Salla is the simplest connector to set up: there is no app to create and no
+credentials to paste. You approve access once and Elastly handles the rest.
+
+<Info>
+  Setup takes about a minute. You need to be the store owner, or a user who can approve apps for the
+  store.
+</Info>
+
+## How it connects
+
+Elastly runs a single Salla app that every store connects through, so you never build one yourself.
+Connecting is a standard OAuth approval:
+
+<Steps>
+  <Step title="Start from Elastly">
+    In Elastly, open **Integrations** and press **Connect Salla**. Elastly sends you to Salla to
+    approve.
+  </Step>
+  <Step title="Approve on Salla">
+    Salla shows you the access Elastly is asking for and which store you're connecting. Approve it.
+  </Step>
+  <Step title="Land back in Elastly">
+    Salla sends you back and Elastly exchanges the approval for a token, reads your store details, and
+    starts the first sync. It takes you to the **Field mapping** page to review the defaults. See
+    [Field mapping](/field-mapping).
+  </Step>
+</Steps>
+
+Elastly keeps a refresh token so the scheduled sync keeps running without you re-approving. If you
+remove Elastly from your store on Salla's side, the connection stops syncing.
+
+## The access it asks for
+
+Salla lists these when you approve. Elastly asks for exactly what it needs to price and nothing more.
+
+| Scope                | What it's for                                                        |
+| -------------------- | -------------------------------------------------------------------- |
+| `settings.read`      | Your store's currency and whether it's a demo store.                 |
+| `customers.read`     | Who is buying, so pricing can vary by customer.                      |
+| `orders.read`        | Realized sales. The outcome the learning loop trains on.             |
+| `products.read_write`| Reads your catalog, and writes an approved price back when you enable write-back. |
+| `offline_access`     | Lets the sync keep running on a schedule without re-approving.       |
+
+<Note>
+  **Read-write is requested, but write-back stays off.** Elastly asks for product write access up
+  front so you never have to reconnect to turn write-back on later. It writes nothing to your store
+  until you enable it and approve a price. See [Price write-back](#price-write-back).
+</Note>
+
+## What Elastly reads
+
+Elastly maps Salla's fields onto its canonical schema. The defaults fit a standard store, and you can
+change any of them on the Field mapping page.
+
+- **Products.** SKU, name, category, brand, price, GTIN, and stock. The product is the priced unit.
+- **Cost.** The product's cost field, which is your margin basis.
+- **Customers.** Full name, city, and country. City seeds the customer's segment and region.
+- **Orders.** Realized, line-level sales. This is the signal the learning loop uses to tune margins.
+
+Salla has no quotes, so like the other storefronts, Elastly learns from realized orders.
+
+<Note>
+  **Cost is the gate.** A product with no cost has no margin basis, so Elastly leaves it unpriced until
+  a later sync brings a cost in. Set cost on your products in Salla before you expect recommendations.
+</Note>
+
+## How the sync runs
+
+- **On a schedule, unattended.** Set the cadence and direction under the connector's Sync settings.
+  You can pause auto-sync whenever you want.
+- **Incremental.** After the first full pull, each run only fetches records that changed since the last
+  watermark.
+- **Environment-aware.** Demo stores are detected and labelled Sandbox. Live stores show Production.
+
+## Verify permissions
+
+If an approval is missing a scope, Salla quietly returns nothing for that record type, and the sync
+looks like it simply found no customers or no orders. Open **Diagnostics** on the connector page and
+press **Check permissions**. Elastly checks the scopes granted on your approval and flags anything
+missing. It runs the same check after every sync. If a scope shows Missing, reconnect from
+**Integrations** and approve again.
+
+## Price write-back
+
+Write-back is off until you turn it on, so Elastly is read-only by default. When you enable it, an
+approved price publishes straight to the product in Salla. Elastly sets the price and touches nothing
+else on the product.
+
+- Turn it on by setting the connector's direction to include **out** under Sync settings. It stays
+  paused until you do.
+- It uses the **products.read_write** access you already approved when you connected, so there's
+  nothing extra to grant.
+- Every price is yours to approve first. Elastly never publishes a price you haven't signed off on.
