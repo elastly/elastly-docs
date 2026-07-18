@@ -1,14 +1,21 @@
 ---
 title: "Build your own connector"
 sidebarTitle: "Build a connector"
-description: "Connect a homegrown ERP or storefront to Elastly in a day. You write five functions; the SDK runs the sync."
+description: "Connect a homegrown ERP or storefront to Elastly in any language. Push your data in, pull approved prices out, over plain REST."
 icon: "wrench"
 ---
 
 If your system of record is homegrown, or one Elastly cannot reach from the outside, you connect it
-yourself: your code calls Elastly, not the other way around. The SDK owns the hard parts (paging,
-checkpoints, retries, batching, run reporting, write-back leases). You implement five functions that
-only you can write, because they read your schema.
+yourself: your code calls Elastly, not the other way around.
+
+This is plain REST, so you can build a connector in **any language**. Two API surfaces do all the
+work: [Ingest](/api/ingest) pushes your data in, and [Write-backs](/api/writebacks) pulls approved
+prices out. Every [SDK](/sdks) exposes both as an `IngestApi` and a `WritebacksApi`, or you can call
+the endpoints directly.
+
+If you're in TypeScript, the SDK goes further: `defineConnector` runs the whole sync for you, so you
+write only the parts that read your schema. That framework is [TypeScript-only](#the-typescript-framework);
+the loop underneath it is the same REST every language uses.
 
 ## Before you start
 
@@ -17,23 +24,35 @@ only you can write, because they read your schema.
    scope; an ERP key will not work.
 3. If you also serve prices, create a separate **ERP** key. One key holds one scope.
 
-## The four loops
+## The loop, in any language
 
 A complete connector closes four loops. The first three feed Elastly; the fourth applies what Elastly
-decided.
+decided. Each maps to REST calls your SDK already has.
 
-| Loop      | What moves                                       | Your function              |
-| --------- | ------------------------------------------------ | -------------------------- |
-| Catalog   | Products with real costs                         | `fetchProducts`            |
-| Customers | Who you sell to                                  | `fetchCustomers`           |
-| Outcomes  | Quotes with won/lost and orders with sold prices | `fetchQuotes`, `fetchOrders` |
-| Apply     | Approved prices back into your system            | `applyPrice`               |
+| Loop      | What moves                                       | How you do it                                              |
+| --------- | ------------------------------------------------ | ---------------------------------------------------------- |
+| Catalog   | Products with real costs                         | Stage `product` records into an ingest batch               |
+| Customers | Who you sell to                                  | Stage `customer` records                                   |
+| Outcomes  | Quotes with won/lost and orders with sold prices | Stage `quote` and `order` records                          |
+| Apply     | Approved prices back into your system            | Claim write-backs, apply them, acknowledge                 |
+
+Feeding data in is one batch: [open it](/api/endpoints/create-ingest-batch), stage your records in
+dependency order (products, then customers, then quotes and orders),
+[commit](/api/endpoints/commit-ingest-batch), and poll until it drains. Applying prices is a three-call
+loop: [claim](/api/endpoints/claim-writebacks), apply each in your system, then
+[acknowledge](/api/endpoints/ack-writebacks). Both are covered end to end, with a live playground, on
+the [Ingest](/api/ingest) and [Write-backs](/api/writebacks) pages.
 
 The outcomes loop is the one teams skip, and skipping it is the expensive mistake. Without quotes and
 orders flowing back, Elastly can serve prices but never learns whether they won. Your margin model
 stays frozen at day one, silently.
 
-## Define the connector
+## The TypeScript framework
+
+In TypeScript, you don't write the batching, paging, checkpoints, retries, or write-back leases. You
+implement five functions that read your schema, and `defineConnector` runs the sync. This framework is
+TypeScript-only; in another language you drive the same loop with your SDK's `IngestApi` and
+`WritebacksApi`, following the [Ingest](/api/ingest) and [Write-backs](/api/writebacks) pages.
 
 ```ts
 import { Elastly, FileCheckpointStore, defineConnector } from "@elastly/sdk"
@@ -132,7 +151,7 @@ Page everything that can grow. Return `nextCursor` whenever another page exists,
 and `fetchOrders` do above; a connector that returns its whole table in one page works in a demo and
 times out at a million rows.
 
-## Run a sync
+### Run the sync
 
 ```ts
 const report = await connector.sync({
@@ -163,7 +182,7 @@ Watch the report's `warnings`. Two matter:
 Run `sync()` on whatever schedule fits your data, a cron every 15 minutes is typical. Elastly rejects
 overlapping syncs for the same connector, so a slow run and the next tick never collide.
 
-## Apply approved prices
+### Apply approved prices
 
 When someone approves a price in Elastly, it lands in a queue for your connector. Drain it whenever you
 like:
