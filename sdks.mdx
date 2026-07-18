@@ -7,7 +7,7 @@ icon: "code"
 
 Elastly ships a typed client for five languages. Four are generated from the same
 [OpenAPI contract](/api/overview) our servers validate against, so their types cannot drift from the
-API. The TypeScript SDK is hand-written and does more, which the [TypeScript SDK](/sdk) page covers.
+API. The TypeScript SDK is hand-written and does more, which the [TypeScript SDK](/sdks/typescript) page covers.
 
 Pick your language once. Every tab below is the same three steps: install, authenticate, price a line.
 
@@ -202,12 +202,13 @@ anything else.
 
 ## Where each SDK lives
 
-Each links to its source on GitHub. The generated SDKs are built from the contract, so file an issue
-rather than a pull request against generated code.
+The four generated SDKs are open source, each in its own public repo, and built from the contract, so
+file an issue rather than a pull request against generated code. The TypeScript SDK is hand-written and
+published to npm.
 
 <Columns cols={3}>
-  <Card title="TypeScript" icon="/logos/typescript.svg" href="https://github.com/elastly/elastly-sdk">
-    On npm. Hand-written, does the most.
+  <Card title="TypeScript" icon="/logos/typescript.svg" href="https://www.npmjs.com/package/@elastly/sdk">
+    On npm as `@elastly/sdk`. Hand-written, does the most.
   </Card>
   <Card title="Python" icon="/logos/python.svg" href="https://github.com/elastly/elastly-python">
     On PyPI. Fully typed.
@@ -229,10 +230,10 @@ rather than a pull request against generated code.
 ## Next steps
 
 <Columns cols={2}>
-  <Card title="TypeScript SDK" icon="bolt" href="/sdk">
+  <Card title="TypeScript SDK" icon="bolt" href="/sdks/typescript">
     Fail-open pricing, retries, typed errors, and webhook verification. TypeScript only.
   </Card>
-  <Card title="Build a connector" icon="wrench" href="/build-a-connector">
+  <Card title="Build a connector" icon="wrench" href="/sdks/build-a-connector">
     Push your own ERP or storefront to Elastly with the connector framework.
   </Card>
   <Card title="API reference" icon="terminal" href="/api/overview">

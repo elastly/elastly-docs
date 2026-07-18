@@ -85,8 +85,8 @@
             "group": "SDKs",
             "pages": [
               "sdks",
-              "sdk",
-              "build-a-connector"
+              "sdks/typescript",
+              "sdks/build-a-connector"
             ]
           }
         ]
@@ -177,6 +177,14 @@
     {
       "source": "/sdk-go",
       "destination": "/sdks"
+    },
+    {
+      "source": "/sdk",
+      "destination": "/sdks/typescript"
+    },
+    {
+      "source": "/build-a-connector",
+      "destination": "/sdks/build-a-connector"
     }
   ]
 }

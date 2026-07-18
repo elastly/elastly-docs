@@ -118,7 +118,7 @@ const connector = defineConnector({
 Two fields in `fetchQuotes` deserve your full attention:
 
 - **`pricingDecisionId`** is the id you stored when you priced the line (see the
-  [SDK quickstart](/sdk)). Echoing it back is how Elastly learns from the difference between its price
+  [SDK quickstart](/sdks/typescript)). Echoing it back is how Elastly learns from the difference between its price
   and your rep's final price. The runtime warns loudly when a sync ingests quote lines with none.
 - **`attributes.lineLocator`** is any identifier that is stable for that line in your system (a line
   id, a row number). Elastly uses it to match the line across syncs and to address it when writing an
