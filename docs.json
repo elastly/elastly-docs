@@ -90,7 +90,15 @@
               "sdks/php",
               "sdks/java",
               "sdks/go",
-              "sdks/build-a-connector"
+              {
+                "group": "Build a connector",
+                "pages": [
+                  "sdks/build-a-connector",
+                  "sdks/build-a-connector/feeding-data",
+                  "sdks/build-a-connector/applying-prices",
+                  "sdks/build-a-connector/typescript-framework"
+                ]
+              }
             ]
           }
         ]

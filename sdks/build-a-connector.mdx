@@ -1,6 +1,6 @@
 ---
 title: "Build your own connector"
-sidebarTitle: "Build a connector"
+sidebarTitle: "Overview"
 description: "Connect a homegrown ERP or storefront to Elastly in any language. Push your data in, pull approved prices out, over plain REST."
 icon: "wrench"
 ---
@@ -10,22 +10,31 @@ yourself: your code calls Elastly, not the other way around. It is plain REST, s
 in **any language** with the [SDK](/sdks) for that language, or with raw HTTP.
 
 A connector does two things. It **feeds Elastly your data** (products, customers, quotes, orders) so it
-can price, and it **applies the prices you approve** back into your system. This page shows both, in
-every language.
+can price, and it **applies the prices you approve** back into your system.
 
-<Info>
-  In a hurry and on TypeScript? The SDK ships a [connector framework](#the-typescript-framework) that
-  runs the whole sync for you. The rest of this page is the underlying loop, which works everywhere.
-</Info>
+<Columns cols={2}>
+  <Card title="Feeding data in" icon="arrow-down-to-line" href="/sdks/build-a-connector/feeding-data">
+    Open a batch, stage your records, commit, and poll until it drains. Every language.
+  </Card>
+  <Card title="Applying prices" icon="arrow-up-from-line" href="/sdks/build-a-connector/applying-prices">
+    Claim approved prices, write them into your system, acknowledge. Every language.
+  </Card>
+  <Card title="TypeScript framework" icon="/logos/typescript.svg" href="/sdks/build-a-connector/typescript-framework">
+    Skip the plumbing. `defineConnector` runs the whole sync for you.
+  </Card>
+  <Card title="API reference" icon="terminal" href="/api/ingest">
+    The Ingest and Write-back endpoints, with a live playground.
+  </Card>
+</Columns>
 
 ## The loop
 
-| Stage      | What moves                                       | Calls                                              |
-| ---------- | ------------------------------------------------ | -------------------------------------------------- |
-| Catalog    | Products with real costs                         | Stage `product` records                            |
-| Customers  | Who you sell to                                  | Stage `customer` records                           |
-| Outcomes   | Quotes (won/lost) and orders (sold prices)       | Stage `quote` and `order` records                  |
-| Apply      | Approved prices back into your system            | Claim, apply, acknowledge                          |
+| Stage      | What moves                                       | Where                                                    |
+| ---------- | ------------------------------------------------ | -------------------------------------------------------- |
+| Catalog    | Products with real costs                         | [Feeding data in](/sdks/build-a-connector/feeding-data)  |
+| Customers  | Who you sell to                                  | [Feeding data in](/sdks/build-a-connector/feeding-data)  |
+| Outcomes   | Quotes (won/lost) and orders (sold prices)       | [Feeding data in](/sdks/build-a-connector/feeding-data)  |
+| Apply      | Approved prices back into your system            | [Applying prices](/sdks/build-a-connector/applying-prices) |
 
 The outcomes stage is the one teams skip, and skipping it is the expensive mistake. Without quotes and
 orders flowing back, Elastly serves prices but never learns whether they won, and your margins stay
@@ -39,6 +48,9 @@ frozen at day one, silently.
    and write-backs need this scope; an ERP key will not work.
 
 ## Set up the client
+
+Every page below assumes this client. On TypeScript the whole surface hangs off one `Elastly`; the
+generated SDKs expose an `IngestApi` and a `WritebacksApi`.
 
 <CodeGroup>
 
@@ -76,371 +88,6 @@ api := elastly.NewAPIClient(elastly.NewConfiguration())
 ```
 
 </CodeGroup>
-
-## The records you send
-
-Every SDK sends the same canonical shapes. Money is always integer cents. These are the fields; the
-[stage records endpoint](/api/endpoints/stage-ingest-records) has the full schema and a live playground.
-
-<CodeGroup>
-
-```json product
-{
-  "sku": "SKU-1042",
-  "name": "Copper fitting",
-  "category": "Fittings",
-  "costCents": 1200,
-  "currentPriceCents": 1900,
-  "externalId": "P-1042"
-}
-```
-
-```json customer
-{
-  "externalId": "CUST-88",
-  "name": "Acme Trading",
-  "segment": "dealer"
-}
-```
-
-```json quote
-{
-  "externalId": "Q-5001",
-  "customerExternalId": "CUST-88",
-  "outcome": "won",
-  "createdAt": "2026-07-01T09:00:00Z",
-  "lines": [
-    {
-      "productSku": "SKU-1042",
-      "quantity": 25,
-      "costCents": 1200,
-      "quotedPriceCents": 1850,
-      "pricingDecisionId": "b3f1c0e2-..."
-    }
-  ]
-}
-```
-
-```json order
-{
-  "externalId": "O-9002",
-  "customerExternalId": "CUST-88",
-  "currency": "USD",
-  "soldAt": "2026-07-02T14:30:00Z",
-  "lines": [
-    { "productSku": "SKU-1042", "quantity": 25, "costCents": 1200, "soldPriceCents": 1850 }
-  ]
-}
-```
-
-</CodeGroup>
-
-<Warning>
-  **Echo the `pricingDecisionId` on every quote line.** It is the id Elastly returned when it priced
-  the line. Sending it back is the whole learning loop: it ties what Elastly recommended to what your
-  rep actually charged. A sync of quote lines with none is flagged loudly, and the model learns
-  nothing from them.
-</Warning>
-
-## Feed your data in
-
-One batch: open it, stage each entity in dependency order (products, then customers, then quotes and
-orders, so a line always resolves to a customer and product already sent), commit, and poll until it
-drains.
-
-<CodeGroup>
-
-```ts TypeScript
-const { batchId } = await elastly.ingest.openBatch()
-
-await elastly.ingest.stage(batchId, "product", products) // auto-chunks at 1000
-await elastly.ingest.stage(batchId, "customer", customers)
-await elastly.ingest.stage(batchId, "quote", quotes)
-await elastly.ingest.stage(batchId, "order", orders)
-
-await elastly.ingest.commit(batchId)
-const result = await elastly.ingest.waitForDrain(batchId)
-console.log(result.status, result.recordCount, result.skippedOverCap)
-```
-
-```python Python
-batch = ingest.create_ingest_batch()
-batch_id = batch.batch_id
-
-ingest.stage_ingest_records(batch_id, {"entity": "product", "records": products})
-ingest.stage_ingest_records(batch_id, {"entity": "customer", "records": customers})
-ingest.stage_ingest_records(batch_id, {"entity": "quote", "records": quotes})
-ingest.stage_ingest_records(batch_id, {"entity": "order", "records": orders})
-
-ingest.commit_ingest_batch(batch_id)
-
-while True:
-    status = ingest.get_ingest_batch_status(batch_id)
-    if status.status in ("drained", "failed"):
-        break
-    time.sleep(2)
-print(status.status, status.record_count, status.skipped_over_cap)
-```
-
-```php PHP
-$batch = $ingest->createIngestBatch();
-$batchId = $batch->getBatchId();
-
-$ingest->stageIngestRecords($batchId, ['entity' => 'product', 'records' => $products]);
-$ingest->stageIngestRecords($batchId, ['entity' => 'customer', 'records' => $customers]);
-$ingest->stageIngestRecords($batchId, ['entity' => 'quote', 'records' => $quotes]);
-$ingest->stageIngestRecords($batchId, ['entity' => 'order', 'records' => $orders]);
-
-$ingest->commitIngestBatch($batchId);
-
-do {
-    sleep(2);
-    $status = $ingest->getIngestBatchStatus($batchId);
-} while (!in_array($status->getStatus(), ['drained', 'failed']));
-echo $status->getStatus() . ' ' . $status->getRecordCount() . PHP_EOL;
-```
-
-```java Java
-String batchId = ingest.createIngestBatch().getBatchId();
-
-ingest.stageIngestRecords(batchId, new StageRecordsRequest().entity("product").records(products));
-ingest.stageIngestRecords(batchId, new StageRecordsRequest().entity("customer").records(customers));
-ingest.stageIngestRecords(batchId, new StageRecordsRequest().entity("quote").records(quotes));
-ingest.stageIngestRecords(batchId, new StageRecordsRequest().entity("order").records(orders));
-
-ingest.commitIngestBatch(batchId);
-
-BatchStatusResponse status;
-do {
-    Thread.sleep(2000);
-    status = ingest.getIngestBatchStatus(batchId);
-} while (!List.of("drained", "failed").contains(status.getStatus()));
-System.out.println(status.getStatus() + " " + status.getRecordCount());
-```
-
-```go Go
-batch, _, _ := api.IngestAPI.CreateIngestBatch(ctx).Execute()
-batchId := batch.GetBatchId()
-
-for _, e := range []struct {
-    entity string
-    recs   []map[string]any
-}{
-    {"product", products}, {"customer", customers}, {"quote", quotes}, {"order", orders},
-} {
-    req := elastly.StageRecordsRequest{Entity: e.entity, Records: e.recs}
-    api.IngestAPI.StageIngestRecords(ctx, batchId).StageRecordsRequest(req).Execute()
-}
-
-api.IngestAPI.CommitIngestBatch(ctx, batchId).Execute()
-
-var status *elastly.BatchStatusResponse
-for {
-    status, _, _ = api.IngestAPI.GetIngestBatchStatus(ctx, batchId).Execute()
-    if s := status.GetStatus(); s == "drained" || s == "failed" {
-        break
-    }
-    time.Sleep(2 * time.Second)
-}
-fmt.Println(status.GetStatus(), status.GetRecordCount())
-```
-
-</CodeGroup>
-
-A batch stages up to **1000 records per call**, so page large catalogs across several `stage` calls
-before you commit. Watch two things on the drained status:
-
-- **`skippedOverCap`** counts products not persisted because your workspace hit its SKU cap. Nothing is
-  dropped silently; the number tells you to raise the cap or trim.
-- A **`failed`** status carries an `error`. The [batch status endpoint](/api/endpoints/get-ingest-batch-status)
-  documents every field.
-
-## Apply approved prices
-
-When you approve a price in Elastly, it lands in a queue for your connector. Drain it on whatever
-schedule fits: claim a batch, write each price into your system, then acknowledge what landed. A claim
-leases the tasks, so two workers never apply the same price.
-
-<CodeGroup>
-
-```ts TypeScript
-const tasks = await elastly.writebacks.claim(100)
-
-const results = await Promise.all(
-  tasks.map(async (task) => {
-    try {
-      await erp.setPrice(task.productExternalId, task.priceCents)
-      return { id: task.id, ok: true }
-    } catch (e) {
-      return { id: task.id, ok: false, error: String(e) }
-    }
-  }),
-)
-
-const summary = await elastly.writebacks.ack(results)
-console.log(summary.applied, summary.failed, summary.expired)
-```
-
-```python Python
-claimed = writebacks.claim_writebacks({"limit": 100})
-
-results = []
-for task in claimed.tasks:
-    try:
-        erp.set_price(task.product_external_id, task.price_cents)
-        results.append({"id": task.id, "ok": True})
-    except Exception as e:
-        results.append({"id": task.id, "ok": False, "error": str(e)})
-
-summary = writebacks.ack_writebacks({"results": results})
-print(summary.applied, summary.failed, summary.expired)
-```
-
-```php PHP
-$claimed = $writebacks->claimWritebacks(['limit' => 100]);
-
-$results = [];
-foreach ($claimed->getTasks() as $task) {
-    try {
-        $erp->setPrice($task->getProductExternalId(), $task->getPriceCents());
-        $results[] = ['id' => $task->getId(), 'ok' => true];
-    } catch (\Throwable $e) {
-        $results[] = ['id' => $task->getId(), 'ok' => false, 'error' => $e->getMessage()];
-    }
-}
-
-$summary = $writebacks->ackWritebacks(['results' => $results]);
-echo $summary->getApplied() . ' applied, ' . $summary->getFailed() . ' failed' . PHP_EOL;
-```
-
-```java Java
-ClaimWritebacksResponse claimed = writebacks.claimWritebacks(
-    new ClaimWritebacksRequest().limit(100));
-
-List<WritebackAckRequestResultsInner> results = new ArrayList<>();
-for (var task : claimed.getTasks()) {
-    try {
-        erp.setPrice(task.getProductExternalId(), task.getPriceCents());
-        results.add(new WritebackAckRequestResultsInner().id(task.getId()).ok(true));
-    } catch (Exception e) {
-        results.add(new WritebackAckRequestResultsInner().id(task.getId()).ok(false).error(e.getMessage()));
-    }
-}
-
-var summary = writebacks.ackWritebacks(new WritebackAckRequest().results(results));
-System.out.println(summary.getApplied() + " applied");
-```
-
-```go Go
-claimReq := elastly.ClaimWritebacksRequest{Limit: elastly.PtrInt32(100)}
-claimed, _, _ := api.WritebacksAPI.ClaimWritebacks(ctx).ClaimWritebacksRequest(claimReq).Execute()
-
-var results []elastly.WritebackAckRequestResultsInner
-for _, task := range claimed.Tasks {
-    err := erp.SetPrice(task.GetProductExternalId(), task.GetPriceCents())
-    results = append(results, elastly.WritebackAckRequestResultsInner{
-        Id: task.GetId(), Ok: err == nil,
-    })
-}
-
-ackReq := elastly.WritebackAckRequest{Results: results}
-summary, _, _ := api.WritebacksAPI.AckWritebacks(ctx).WritebackAckRequest(ackReq).Execute()
-fmt.Println(summary.GetApplied(), "applied")
-```
-
-</CodeGroup>
-
-<Note>
-  **Delivery is at-least-once, so make your write idempotent.** A task whose ack never arrives returns
-  to the queue and reaches you again. Setting the same price twice should be harmless. When you
-  acknowledge, `expired` counts tasks whose lease had already run out; those went back to the queue, so
-  claim again and reapply. Each task carries both `productSku` and `productExternalId`, so you can match
-  it however your system keys products. The [claim](/api/endpoints/claim-writebacks) and
-  [acknowledge](/api/endpoints/ack-writebacks) endpoints document every field.
-</Note>
-
-## The TypeScript framework
-
-Everything above is the raw loop. In TypeScript you don't have to write the paging, checkpoints,
-retries, batching, or write-back leases yourself: `defineConnector` runs the whole sync. You implement
-functions that read your schema, and the runtime does the rest. This framework is TypeScript-only; in
-another language you drive the loop with the calls above.
-
-```ts
-import { Elastly, FileCheckpointStore, defineConnector } from "@elastly/sdk"
-
-const elastly = new Elastly({ apiKey: process.env.ELASTLY_CONNECTOR_KEY })
-
-const connector = defineConnector({
-  async fetchProducts(cursor) {
-    const rows = await erp.products({ after: cursor, limit: 500 })
-    return {
-      records: rows.map((row) => ({
-        sku: row.sku,
-        externalId: row.id,
-        name: row.name,
-        category: row.category,
-        costCents: row.unitCostCents,
-        currentPriceCents: row.listPriceCents,
-        currency: "USD",
-      })),
-      nextCursor: rows.length === 500 ? rows[rows.length - 1].id : null,
-    }
-  },
-
-  async fetchCustomers(cursor) {
-    const rows = await erp.customers({ after: cursor })
-    return {
-      records: rows.map((row) => ({ externalId: row.id, name: row.name, segment: row.tier })),
-      nextCursor: null,
-    }
-  },
-
-  async fetchQuotes(cursor) {
-    const rows = await erp.closedQuotes({ after: cursor })
-    return {
-      records: rows.map((quote) => ({
-        externalId: quote.id,
-        customerExternalId: quote.customerId,
-        outcome: quote.wonAt ? "won" : quote.lostAt ? "lost" : "open",
-        createdAt: quote.createdAt,
-        lines: quote.lines.map((line) => ({
-          productSku: line.sku,
-          quantity: line.quantity,
-          costCents: line.costCents,
-          quotedPriceCents: line.finalPriceCents,
-          pricingDecisionId: line.elastlyDecisionId ?? null,
-          attributes: { lineLocator: line.id },
-        })),
-      })),
-      nextCursor: null,
-    }
-  },
-
-  async applyPrice(task) {
-    await erp.updatePrice(task.target.quoteExternalId, task.target.lineLocator, task.priceCents)
-    return { id: task.id, ok: true }
-  },
-})
-
-const report = await connector.sync({
-  client: elastly,
-  checkpoints: new FileCheckpointStore("./elastly-checkpoints.json"),
-})
-console.log(report.status, report.staged, report.warnings)
-```
-
-One call runs the whole ingest in dependency order, commits, and waits for the drain. Checkpoints make
-it crash-safe: the cursor is saved after every page, so a process that dies mid-sync resumes where it
-stopped, and re-sent pages are deduplicated on your external ids. Apply approved prices the same way
-with `connector.drainWritebacks({ client: elastly })`, which claims, calls your `applyPrice`, and
-acknowledges, with leases handled for you.
-
-<Note>
-  **`attributes.lineLocator`** is any identifier stable for a line in your system. Elastly uses it to
-  match the line across syncs and to address it when writing a price back. Lines without it are still
-  priced and learned from, but they are skipped by write-backs.
-</Note>
 
 ## Prove the loop is closed
 

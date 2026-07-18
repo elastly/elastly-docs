@@ -1,0 +1,189 @@
+---
+title: "Feeding your data in"
+sidebarTitle: "Feeding data in"
+description: "Push products, customers, quotes, and orders to Elastly in one batch, in any language."
+icon: "arrow-down-to-line"
+---
+
+You feed Elastly your data in one batch: open it, stage each entity in dependency order, commit, and
+poll until it drains. This works in every language. Set up your client first (see the
+[overview](/sdks/build-a-connector)).
+
+## The records you send
+
+Every SDK sends the same canonical shapes. Money is always integer cents. These are the fields; the
+[stage records endpoint](/api/endpoints/stage-ingest-records) has the full schema and a live playground.
+
+<CodeGroup>
+
+```json product
+{
+  "sku": "SKU-1042",
+  "name": "Copper fitting",
+  "category": "Fittings",
+  "costCents": 1200,
+  "currentPriceCents": 1900,
+  "externalId": "P-1042"
+}
+```
+
+```json customer
+{
+  "externalId": "CUST-88",
+  "name": "Acme Trading",
+  "segment": "dealer"
+}
+```
+
+```json quote
+{
+  "externalId": "Q-5001",
+  "customerExternalId": "CUST-88",
+  "outcome": "won",
+  "createdAt": "2026-07-01T09:00:00Z",
+  "lines": [
+    {
+      "productSku": "SKU-1042",
+      "quantity": 25,
+      "costCents": 1200,
+      "quotedPriceCents": 1850,
+      "pricingDecisionId": "b3f1c0e2-..."
+    }
+  ]
+}
+```
+
+```json order
+{
+  "externalId": "O-9002",
+  "customerExternalId": "CUST-88",
+  "currency": "USD",
+  "soldAt": "2026-07-02T14:30:00Z",
+  "lines": [
+    { "productSku": "SKU-1042", "quantity": 25, "costCents": 1200, "soldPriceCents": 1850 }
+  ]
+}
+```
+
+</CodeGroup>
+
+<Warning>
+  **Echo the `pricingDecisionId` on every quote line.** It is the id Elastly returned when it priced
+  the line. Sending it back is the whole learning loop: it ties what Elastly recommended to what your
+  rep actually charged. A sync of quote lines with none is flagged loudly, and the model learns
+  nothing from them.
+</Warning>
+
+## Open, stage, commit, poll
+
+Stage each entity in dependency order (products, then customers, then quotes and orders, so a line
+always resolves to a customer and product already sent). A batch stages up to **1000 records per
+call**, so page large catalogs across several `stage` calls before you commit.
+
+<CodeGroup>
+
+```ts TypeScript
+const { batchId } = await elastly.ingest.openBatch()
+
+await elastly.ingest.stage(batchId, "product", products) // auto-chunks at 1000
+await elastly.ingest.stage(batchId, "customer", customers)
+await elastly.ingest.stage(batchId, "quote", quotes)
+await elastly.ingest.stage(batchId, "order", orders)
+
+await elastly.ingest.commit(batchId)
+const result = await elastly.ingest.waitForDrain(batchId)
+console.log(result.status, result.recordCount, result.skippedOverCap)
+```
+
+```python Python
+batch = ingest.create_ingest_batch()
+batch_id = batch.batch_id
+
+ingest.stage_ingest_records(batch_id, {"entity": "product", "records": products})
+ingest.stage_ingest_records(batch_id, {"entity": "customer", "records": customers})
+ingest.stage_ingest_records(batch_id, {"entity": "quote", "records": quotes})
+ingest.stage_ingest_records(batch_id, {"entity": "order", "records": orders})
+
+ingest.commit_ingest_batch(batch_id)
+
+while True:
+    status = ingest.get_ingest_batch_status(batch_id)
+    if status.status in ("drained", "failed"):
+        break
+    time.sleep(2)
+print(status.status, status.record_count, status.skipped_over_cap)
+```
+
+```php PHP
+$batch = $ingest->createIngestBatch();
+$batchId = $batch->getBatchId();
+
+$ingest->stageIngestRecords($batchId, ['entity' => 'product', 'records' => $products]);
+$ingest->stageIngestRecords($batchId, ['entity' => 'customer', 'records' => $customers]);
+$ingest->stageIngestRecords($batchId, ['entity' => 'quote', 'records' => $quotes]);
+$ingest->stageIngestRecords($batchId, ['entity' => 'order', 'records' => $orders]);
+
+$ingest->commitIngestBatch($batchId);
+
+do {
+    sleep(2);
+    $status = $ingest->getIngestBatchStatus($batchId);
+} while (!in_array($status->getStatus(), ['drained', 'failed']));
+echo $status->getStatus() . ' ' . $status->getRecordCount() . PHP_EOL;
+```
+
+```java Java
+String batchId = ingest.createIngestBatch().getBatchId();
+
+ingest.stageIngestRecords(batchId, new StageRecordsRequest().entity("product").records(products));
+ingest.stageIngestRecords(batchId, new StageRecordsRequest().entity("customer").records(customers));
+ingest.stageIngestRecords(batchId, new StageRecordsRequest().entity("quote").records(quotes));
+ingest.stageIngestRecords(batchId, new StageRecordsRequest().entity("order").records(orders));
+
+ingest.commitIngestBatch(batchId);
+
+BatchStatusResponse status;
+do {
+    Thread.sleep(2000);
+    status = ingest.getIngestBatchStatus(batchId);
+} while (!List.of("drained", "failed").contains(status.getStatus()));
+System.out.println(status.getStatus() + " " + status.getRecordCount());
+```
+
+```go Go
+batch, _, _ := api.IngestAPI.CreateIngestBatch(ctx).Execute()
+batchId := batch.GetBatchId()
+
+for _, e := range []struct {
+    entity string
+    recs   []map[string]any
+}{
+    {"product", products}, {"customer", customers}, {"quote", quotes}, {"order", orders},
+} {
+    req := elastly.StageRecordsRequest{Entity: e.entity, Records: e.recs}
+    api.IngestAPI.StageIngestRecords(ctx, batchId).StageRecordsRequest(req).Execute()
+}
+
+api.IngestAPI.CommitIngestBatch(ctx, batchId).Execute()
+
+var status *elastly.BatchStatusResponse
+for {
+    status, _, _ = api.IngestAPI.GetIngestBatchStatus(ctx, batchId).Execute()
+    if s := status.GetStatus(); s == "drained" || s == "failed" {
+        break
+    }
+    time.Sleep(2 * time.Second)
+}
+fmt.Println(status.GetStatus(), status.GetRecordCount())
+```
+
+</CodeGroup>
+
+Watch two things on the drained status:
+
+- **`skippedOverCap`** counts products not persisted because your workspace hit its SKU cap. Nothing is
+  dropped silently; the number tells you to raise the cap or trim.
+- A **`failed`** status carries an `error`. The
+  [batch status endpoint](/api/endpoints/get-ingest-batch-status) documents every field.
+
+Next: [apply the prices you approve](/sdks/build-a-connector/applying-prices).

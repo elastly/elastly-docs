@@ -1,0 +1,111 @@
+---
+title: "Applying approved prices"
+sidebarTitle: "Applying prices"
+description: "Claim the prices you approve, write them into your system, and acknowledge what landed."
+icon: "arrow-up-from-line"
+---
+
+When you approve a price in Elastly, it lands in a queue for your connector. Drain it on whatever
+schedule fits: claim a batch, write each price into your system, then acknowledge what landed. A claim
+leases the tasks, so two workers never apply the same price. Set up your client first (see the
+[overview](/sdks/build-a-connector)).
+
+## Claim, apply, acknowledge
+
+<CodeGroup>
+
+```ts TypeScript
+const tasks = await elastly.writebacks.claim(100)
+
+const results = await Promise.all(
+  tasks.map(async (task) => {
+    try {
+      await erp.setPrice(task.productExternalId, task.priceCents)
+      return { id: task.id, ok: true }
+    } catch (e) {
+      return { id: task.id, ok: false, error: String(e) }
+    }
+  }),
+)
+
+const summary = await elastly.writebacks.ack(results)
+console.log(summary.applied, summary.failed, summary.expired)
+```
+
+```python Python
+claimed = writebacks.claim_writebacks({"limit": 100})
+
+results = []
+for task in claimed.tasks:
+    try:
+        erp.set_price(task.product_external_id, task.price_cents)
+        results.append({"id": task.id, "ok": True})
+    except Exception as e:
+        results.append({"id": task.id, "ok": False, "error": str(e)})
+
+summary = writebacks.ack_writebacks({"results": results})
+print(summary.applied, summary.failed, summary.expired)
+```
+
+```php PHP
+$claimed = $writebacks->claimWritebacks(['limit' => 100]);
+
+$results = [];
+foreach ($claimed->getTasks() as $task) {
+    try {
+        $erp->setPrice($task->getProductExternalId(), $task->getPriceCents());
+        $results[] = ['id' => $task->getId(), 'ok' => true];
+    } catch (\Throwable $e) {
+        $results[] = ['id' => $task->getId(), 'ok' => false, 'error' => $e->getMessage()];
+    }
+}
+
+$summary = $writebacks->ackWritebacks(['results' => $results]);
+echo $summary->getApplied() . ' applied, ' . $summary->getFailed() . ' failed' . PHP_EOL;
+```
+
+```java Java
+ClaimWritebacksResponse claimed = writebacks.claimWritebacks(
+    new ClaimWritebacksRequest().limit(100));
+
+List<WritebackAckRequestResultsInner> results = new ArrayList<>();
+for (var task : claimed.getTasks()) {
+    try {
+        erp.setPrice(task.getProductExternalId(), task.getPriceCents());
+        results.add(new WritebackAckRequestResultsInner().id(task.getId()).ok(true));
+    } catch (Exception e) {
+        results.add(new WritebackAckRequestResultsInner().id(task.getId()).ok(false).error(e.getMessage()));
+    }
+}
+
+var summary = writebacks.ackWritebacks(new WritebackAckRequest().results(results));
+System.out.println(summary.getApplied() + " applied");
+```
+
+```go Go
+claimReq := elastly.ClaimWritebacksRequest{Limit: elastly.PtrInt32(100)}
+claimed, _, _ := api.WritebacksAPI.ClaimWritebacks(ctx).ClaimWritebacksRequest(claimReq).Execute()
+
+var results []elastly.WritebackAckRequestResultsInner
+for _, task := range claimed.Tasks {
+    err := erp.SetPrice(task.GetProductExternalId(), task.GetPriceCents())
+    results = append(results, elastly.WritebackAckRequestResultsInner{
+        Id: task.GetId(), Ok: err == nil,
+    })
+}
+
+ackReq := elastly.WritebackAckRequest{Results: results}
+summary, _, _ := api.WritebacksAPI.AckWritebacks(ctx).WritebackAckRequest(ackReq).Execute()
+fmt.Println(summary.GetApplied(), "applied")
+```
+
+</CodeGroup>
+
+<Note>
+  **Delivery is at-least-once, so make your write idempotent.** A task whose ack never arrives returns
+  to the queue and reaches you again. Setting the same price twice should be harmless. When you
+  acknowledge, `expired` counts tasks whose lease had already run out; those went back to the queue, so
+  claim again and reapply. Each task carries both `productSku` and `productExternalId`, so you can match
+  it however your system keys products. The [claim](/api/endpoints/claim-writebacks) and
+  [acknowledge](/api/endpoints/ack-writebacks) endpoints document every field.
+</Note>
