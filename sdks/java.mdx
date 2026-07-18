@@ -1,0 +1,91 @@
+---
+title: "Java SDK"
+sidebarTitle: "Java"
+description: "Call the Elastly pricing API from Java. Price lines, ingest your catalog, and claim write-backs with a typed client generated from the same contract our servers validate against."
+icon: "/logos/java.svg"
+---
+
+The `io.elastly:elastly-sdk` artifact is the supported way to call Elastly from Java. It is generated from the same [OpenAPI contract](/api/overview) our own servers validate against, so its types cannot drift from the API. It covers the full v1 surface: pricing, ingest, and write-backs.
+
+```xml
+<dependency>
+  <groupId>io.elastly</groupId>
+  <artifactId>elastly-sdk</artifactId>
+  <version>0.1.1</version>
+</dependency>
+```
+
+Or with Gradle:
+
+```groovy
+implementation 'io.elastly:elastly-sdk:0.1.1'
+```
+
+Java 8 or later.
+
+## Keys and scopes
+
+Create API keys under **Settings → API keys**. Scopes are separate on purpose: an ERP key prices lines, a connector key ingests data and claims write-backs. A serving key can never write your catalog, and a connector key can never read prices. Set the key as a bearer token on the `ApiClient`.
+
+```java
+ApiClient client = Configuration.getDefaultApiClient();
+client.setBearerToken("elastly_live_...");
+```
+
+## Price a line
+
+`getPrices` takes up to 100 lines in one call. Each response line is either a priced result or a typed per-line error, so one unknown SKU fails that line alone and never the whole batch.
+
+```java
+import java.math.BigDecimal;
+import java.util.Arrays;
+import java.util.UUID;
+
+import io.elastly.sdk.ApiClient;
+import io.elastly.sdk.Configuration;
+import io.elastly.sdk.api.PricesApi;
+import io.elastly.sdk.model.PricesRequest;
+import io.elastly.sdk.model.PricesRequestLinesInner;
+import io.elastly.sdk.model.PricesResponse;
+import io.elastly.sdk.model.PricesResponseLinesInner;
+import io.elastly.sdk.model.PricesResponseLinesInnerOneOf;
+
+ApiClient client = Configuration.getDefaultApiClient();
+client.setBearerToken("elastly_live_...");
+
+PricesApi prices = new PricesApi(client);
+
+PricesRequestLinesInner line = new PricesRequestLinesInner()
+    .productSku("SKU-1042")
+    .customerExternalId("CUST-88")
+    .quantity(new BigDecimal(25));
+
+PricesResponse response = prices.getPrices(
+    UUID.randomUUID().toString(),
+    new PricesRequest().lines(Arrays.asList(line)));
+
+for (PricesResponseLinesInner l : response.getLines()) {
+    Object result = l.getActualInstance();
+    if (result instanceof PricesResponseLinesInnerOneOf) {
+        PricesResponseLinesInnerOneOf priced = (PricesResponseLinesInnerOneOf) result;
+        System.out.println(priced.getPriceCents() + " " + priced.getCurrency() + ": " + priced.getReasonSummary());
+    }
+}
+```
+
+Every priced call needs an `Idempotency-Key` (the first argument to `getPrices`). Use a fresh key for each logical request and reuse the same key when you retry, so a retried call is served from the stored response and never prices twice.
+
+## The one thing to get right: the decision id
+
+Every priced line comes back with a `pricingDecisionId`. Store it in your own system, on the quote line it priced. When that quote later closes and you send it back to Elastly, the id is how Elastly connects what it recommended to what your rep actually did. That difference is what the pricing model learns from.
+
+<Info>
+  Skip this and everything still looks like it works: prices serve, quotes ingest, dashboards fill. But the model learns nothing from your quotes, and nothing will tell you. Persist the decision id first, before anything else.
+</Info>
+
+## Next steps
+
+- [Prices, ingest, and write-backs](/api/overview) in the API reference
+- [Build your own connector](/sdks/build-a-connector) for a homegrown ERP or storefront
+
+The source is on [GitHub](https://github.com/elastly/elastly-java). It is generated, so file an issue rather than a pull request against generated code.

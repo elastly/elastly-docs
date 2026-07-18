@@ -1,0 +1,79 @@
+---
+title: "Go SDK"
+sidebarTitle: "Go"
+description: "Call the Elastly pricing API from Go. Price lines, ingest your catalog, and claim write-backs with a typed client generated from the same contract our servers validate against."
+icon: "/logos/go.svg"
+---
+
+The `github.com/elastly/elastly-go` module is the supported way to call Elastly from Go. It is generated from the same [OpenAPI contract](/api/overview) our own servers validate against, so its types cannot drift from the API. It covers the full v1 surface: pricing, ingest, and write-backs.
+
+```bash
+go get github.com/elastly/elastly-go@latest
+```
+
+## Keys and scopes
+
+Create API keys under **Settings → API keys**. Scopes are separate on purpose: an ERP key prices lines, a connector key ingests data and claims write-backs. A serving key can never write your catalog, and a connector key can never read prices. Pass the key as a bearer token through the request context.
+
+```go
+ctx := context.WithValue(context.Background(), elastly.ContextAccessToken, "elastly_live_...")
+```
+
+## Price a line
+
+`GetPrices` takes up to 100 lines in one call. Each response line is either a priced result or a typed per-line error, so one unknown SKU fails that line alone and never the whole batch.
+
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+	"log"
+
+	elastly "github.com/elastly/elastly-go"
+)
+
+func main() {
+	client := elastly.NewAPIClient(elastly.NewConfiguration())
+	ctx := context.WithValue(context.Background(), elastly.ContextAccessToken, "elastly_live_...")
+
+	line := *elastly.NewPricesRequestLinesInner()
+	line.SetProductSku("SKU-1042")
+	line.SetCustomerExternalId("CUST-88")
+	line.SetQuantity(25)
+
+	request := elastly.NewPricesRequest([]elastly.PricesRequestLinesInner{line})
+
+	response, _, err := client.PricesAPI.GetPrices(ctx).
+		IdempotencyKey("one-key-per-logical-request").
+		PricesRequest(*request).
+		Execute()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	for _, l := range response.Lines {
+		if priced := l.PricesResponseLinesInnerOneOf; priced != nil {
+			fmt.Println(priced.PriceCents, priced.Currency, priced.ReasonSummary)
+		}
+	}
+}
+```
+
+Every priced call needs an `Idempotency-Key`. Use a fresh key for each logical request and reuse the same key when you retry, so a retried call is served from the stored response and never prices twice.
+
+## The one thing to get right: the decision id
+
+Every priced line comes back with a `pricingDecisionId`. Store it in your own system, on the quote line it priced. When that quote later closes and you send it back to Elastly, the id is how Elastly connects what it recommended to what your rep actually did. That difference is what the pricing model learns from.
+
+<Info>
+  Skip this and everything still looks like it works: prices serve, quotes ingest, dashboards fill. But the model learns nothing from your quotes, and nothing will tell you. Persist the decision id first, before anything else.
+</Info>
+
+## Next steps
+
+- [Prices, ingest, and write-backs](/api/overview) in the API reference
+- [Build your own connector](/sdks/build-a-connector) for a homegrown ERP or storefront
+
+The source is on [GitHub](https://github.com/elastly/elastly-go). It is generated, so file an issue rather than a pull request against generated code.

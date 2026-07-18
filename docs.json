@@ -86,6 +86,10 @@
             "pages": [
               "sdks",
               "sdks/typescript",
+              "sdks/python",
+              "sdks/php",
+              "sdks/java",
+              "sdks/go",
               "sdks/build-a-connector"
             ]
           }
@@ -164,19 +168,19 @@
   "redirects": [
     {
       "source": "/sdk-python",
-      "destination": "/sdks"
+      "destination": "/sdks/python"
     },
     {
       "source": "/sdk-php",
-      "destination": "/sdks"
+      "destination": "/sdks/php"
     },
     {
       "source": "/sdk-java",
-      "destination": "/sdks"
+      "destination": "/sdks/java"
     },
     {
       "source": "/sdk-go",
-      "destination": "/sdks"
+      "destination": "/sdks/go"
     },
     {
       "source": "/sdk",
