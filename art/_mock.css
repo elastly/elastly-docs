@@ -1,0 +1,41 @@
+/* Shared UI-mockup primitives. Provider screens use the neutral --panel look;
+   Elastly dialogs add the brand accent. Rendered to PNG, never shipped as HTML. */
+.win {
+  width: 640px; background: var(--surface); border: 1px solid var(--line);
+  border-radius: 14px; overflow: hidden; box-shadow: 0 1px 2px rgba(15,26,21,.04), 0 8px 24px rgba(15,26,21,.06);
+}
+.win .bar { display: flex; align-items: center; gap: 7px; padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--surface-subtle, #fbfbfc); }
+.win .bar .dot { width: 10px; height: 10px; border-radius: 50%; background: #e6e6ea; }
+.win .bar .ttl { margin-left: 8px; font-size: 13px; font-weight: 600; color: var(--ink-600); }
+.win .body { padding: 22px 24px; }
+.h { font-size: 17px; font-weight: 700; letter-spacing: -0.01em; margin-bottom: 3px; }
+.sub { font-size: 13px; color: var(--ink-400); margin-bottom: 18px; }
+
+.field { margin-bottom: 14px; }
+.field .lab { font-size: 12.5px; font-weight: 600; color: var(--ink-600); margin-bottom: 6px; }
+.input { height: 40px; border: 1px solid var(--line-strong, #dcdce2); border-radius: 9px; background: var(--surface); display: flex; align-items: center; padding: 0 13px; font-size: 13.5px; color: var(--ink); font-family: "Geist Mono", ui-monospace, monospace; }
+.input.ph { color: var(--ink-350, #9b9ba3); }
+
+.check { display: flex; align-items: center; gap: 11px; padding: 10px 0; }
+.box { width: 19px; height: 19px; border-radius: 5px; flex: none; border: 1.5px solid var(--line-strong, #dcdce2); display: flex; align-items: center; justify-content: center; }
+.box.on { background: var(--brand); border-color: var(--brand); }
+.box.on svg { width: 12px; height: 12px; stroke: #fff; stroke-width: 3; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.check .txt { font-size: 14px; color: var(--ink); }
+.check .txt small { display: block; color: var(--ink-400); font-size: 12px; margin-top: 1px; }
+.check.off .txt { color: var(--ink-350, #9b9ba3); }
+
+.toggle { width: 38px; height: 22px; border-radius: 999px; background: var(--brand); position: relative; flex: none; }
+.toggle::after { content: ""; position: absolute; top: 2px; right: 2px; width: 18px; height: 18px; border-radius: 50%; background: #fff; }
+.toggle.off { background: #e6e6ea; }
+.toggle.off::after { left: 2px; right: auto; }
+
+.btn { height: 42px; border-radius: 10px; background: var(--brand); color: #fff; font-size: 14px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; padding: 0 22px; }
+.btn.block { display: flex; margin-top: 6px; }
+
+.tag { display: inline-flex; align-items: center; font-family: "Geist Mono", ui-monospace, monospace; font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 6px; letter-spacing: .02em; }
+.tag.req { color: var(--brand); background: var(--brand-50); }
+.tag.opt { color: var(--gold-strong, #c77f10); background: #fdf2dc; }
+.row { display: flex; align-items: center; justify-content: space-between; padding: 11px 0; border-bottom: 1px solid var(--line-subtle, #f0f0f3); }
+.row:last-child { border-bottom: none; }
+.row .k { font-family: "Geist Mono", ui-monospace, monospace; font-size: 13px; color: var(--ink); }
+.row .k small { font-family: "Geist", sans-serif; display: block; color: var(--ink-400); font-size: 11.5px; margin-top: 2px; }

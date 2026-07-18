@@ -25,6 +25,10 @@ and upload the certificate.
 Go to **Setup → Company → Enable Features → SuiteCloud**. Enable **Client SuiteScript**, **Server
 SuiteScript**, **REST Web Services**, and **OAuth 2.0**, accept the SuiteCloud terms, then save.
 
+<Frame caption="Enable Features → SuiteCloud. All four must be checked before you save.">
+  <img src="/art/ns-enable-features.png" alt="The SuiteCloud tab with Client SuiteScript, Server SuiteScript, REST Web Services, and OAuth 2.0 all checked." />
+</Frame>
+
 <Warning>
   **Do this first.** The OAuth 2.0 login permission you'll add to the role in a later step does
   **not** appear in the permissions list until **OAuth 2.0** is enabled here and saved. If you can't
@@ -175,6 +179,10 @@ your NetSuite URL). Production looks like `1234567`; sandbox looks like `1234567
 Back in the Elastly connect dialog, enter your **Account ID**, **Client ID**, and **Certificate ID**,
 then click **Connect to NetSuite**. There's no redirect or authorize step: Elastly requests an access
 token to verify the setup and starts your first sync.
+
+<Frame caption="The three values go into Elastly's connect dialog. Click Connect and the first sync starts.">
+  <img src="/art/ns-connect.png" alt="Elastly's Connect Oracle NetSuite dialog with Account ID, Client ID, and Certificate ID fields." />
+</Frame>
 
 | Value          | Where to find it                                         |
 | -------------- | -------------------------------------------------------- |
