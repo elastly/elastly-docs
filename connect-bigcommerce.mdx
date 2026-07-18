@@ -36,6 +36,10 @@ You'll see it again in the API path of the account you create next, so there's n
   <Step title="Grant the access it needs">
     Set the OAuth scopes to exactly these. Nothing more, nothing less.
 
+    <Frame caption="The API account scopes. Products needs Modify for write-back; the rest are read-only.">
+      <img src="/art/bigcommerce-scopes.png" alt="BigCommerce store-level API account scopes: Products Modify, Orders read-only, Customers read-only, Information and settings read-only." />
+    </Frame>
+
     | Scope                    | Level     | What it's for                                                     |
     | ------------------------ | --------- | ----------------------------------------------------------------- |
     | Products                 | Modify    | Catalog, variants, price, cost, categories, brands. Choose read-only if you never want write-back. |

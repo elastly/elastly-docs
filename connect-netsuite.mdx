@@ -46,6 +46,10 @@ Go to **Setup → Integration → Manage Integrations → New**. Name it (for ex
 
 Save. NetSuite shows a **Client ID**; copy it now.
 
+<Frame caption="The integration record. Client ID appears once, right after you save.">
+  <img src="/art/ns-integration-record.png" alt="NetSuite integration record with Client Credentials grant and REST Web Services checked, Authorization Code Grant unchecked, and the Client ID shown." />
+</Frame>
+
 <Note>
   M2M has no client secret. Authentication is done with a certificate, which you'll add in the steps
   below.
@@ -155,6 +159,10 @@ Management** permission; a full Administrator role already has it.) Fill in:
 - **Certificate**: upload `elastly-netsuite.pem`
 
 Save. NetSuite generates a **Certificate ID**; copy it.
+
+<Frame caption="M2M setup: entity, role, application, and the public certificate. Certificate ID appears after saving.">
+  <img src="/art/ns-m2m-setup.png" alt="NetSuite OAuth 2.0 M2M setup with the entity, role, application, and the elastly-netsuite.pem certificate uploaded, showing the Certificate ID." />
+</Frame>
 
 <AccordionGroup>
   <Accordion title="Sandbox accounts are isolated" icon="flask">
@@ -324,6 +332,10 @@ each one:
 - **Parameters**: fill in both values here. The base URL is `https://app.elastly.io` and the API key
   is the one you copied earlier. Both fields need real values on **each** deployment record, and they
   don't carry over from one deployment to the other.
+
+<Frame caption="A deployment per record type. Status Released, with the base URL and API key parameters set.">
+  <img src="/art/ns-script-deployment.png" alt="NetSuite script deployment on Estimate, status Released, with custscript_elastly_base_url and custscript_elastly_api_key parameters filled in." />
+</Frame>
 
 <Note>
   **Deploy order.** Because Elastly only fills its advisory columns and never touches the line rate, it
