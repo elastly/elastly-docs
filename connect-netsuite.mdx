@@ -98,15 +98,6 @@ to them.
 </Steps>
 
 <Warning>
-  **OneWorld: set the subsidiary.** If your NetSuite account is **OneWorld** (more than one
-  subsidiary), the role and the user you assign it to only see the subsidiaries they're granted, and
-  Elastly syncs data only for those. Customers, items, and orders in a subsidiary the role can't reach
-  are skipped with no error, so the data just looks incomplete later. On the role, grant every
-  subsidiary you want priced (or all of them), and confirm the assigned user has the same access. On a
-  single-subsidiary account there's nothing to set here.
-</Warning>
-
-<Warning>
   **Sales Order is required, and its omission fails silently.** Elastly's pricing learns from won,
   realized Sales Orders. They're the accept signal and the last-purchase-price source. SuiteQL is
   permission-sensitive: if the role can't read Sales Orders, the orders sync fails with an opaque
@@ -114,19 +105,28 @@ to them.
   "access denied". If orders aren't syncing, check this permission first.
 </Warning>
 
-<Note>
-  **Optional: price write-back.** If you want Elastly to batch-publish approved recommendations onto
-  your NetSuite quotes (the **Elastly Rate** column, never the native price), also grant **Edit** (not
-  just View) on **Estimate**. Sales Order stays **View**, since write-back only ever updates Estimate
-  lines. View-only on both is enough for read-only pricing intelligence.
-</Note>
-
-<Warning>
-  **Quotation vs Estimate.** NetSuite may label this permission "Quotation," not "Estimate." Even on
-  an account that has never renamed anything, the Transactions permission picker can list the Estimate
-  record under NetSuite's internal name, **Quotation**. If you don't see "Estimate" in the
-  Transactions permission list, look for "Quotation" instead; it's the same permission.
-</Warning>
+<AccordionGroup>
+  <Accordion title="OneWorld accounts: grant the subsidiaries" icon="building">
+    If your NetSuite account is **OneWorld** (more than one subsidiary), the role and the user you
+    assign it to only see the subsidiaries they're granted, and Elastly syncs data only for those.
+    Customers, items, and orders in a subsidiary the role can't reach are skipped with no error, so the
+    data just looks incomplete later. On the role, grant every subsidiary you want priced (or all of
+    them), and confirm the assigned user has the same access. On a single-subsidiary account there's
+    nothing to set here.
+  </Accordion>
+  <Accordion title="If you don't see &quot;Estimate&quot; in the list" icon="tag">
+    NetSuite may label this permission "Quotation," not "Estimate." Even on an account that has never
+    renamed anything, the Transactions permission picker can list the Estimate record under NetSuite's
+    internal name, **Quotation**. If you don't see "Estimate", look for "Quotation" instead; it's the
+    same permission.
+  </Accordion>
+  <Accordion title="Turning on price write-back later" icon="pen">
+    If you want Elastly to batch-publish approved recommendations onto your NetSuite quotes (the
+    **Elastly Rate** column, never the native price), grant **Edit** (not just View) on **Estimate**.
+    Sales Order stays **View**, since write-back only ever updates Estimate lines. View-only on both is
+    enough for read-only pricing intelligence.
+  </Accordion>
+</AccordionGroup>
 
 ## Generate the certificate in Elastly
 
@@ -152,17 +152,18 @@ Management** permission; a full Administrator role already has it.) Fill in:
 
 Save. NetSuite generates a **Certificate ID**; copy it.
 
-<Warning>
-  **Sandbox is isolated.** Sandbox accounts are isolated: redo this M2M certificate setup in each
-  environment, and again after every sandbox refresh.
-</Warning>
-
-<Note>
-  **Certificate expiry.** The certificate Elastly generates is valid for two years. The sync runs
-  normally until then, and Elastly emails you a reminder as the expiry date approaches. To renew, open
-  **Integrations → Oracle NetSuite** in Elastly, generate a fresh certificate, upload it in this same
-  M2M setup screen, and enter the new Certificate ID. It's the same steps you're doing now.
-</Note>
+<AccordionGroup>
+  <Accordion title="Sandbox accounts are isolated" icon="flask">
+    Redo this M2M certificate setup in each environment, and again after every sandbox refresh. A
+    sandbox and production never share a certificate.
+  </Accordion>
+  <Accordion title="Renewing the certificate (every two years)" icon="clock">
+    The certificate Elastly generates is valid for two years. The sync runs normally until then, and
+    Elastly emails you a reminder as the expiry date approaches. To renew, open **Integrations → Oracle
+    NetSuite** in Elastly, generate a fresh certificate, upload it in this same M2M setup screen, and
+    enter the new Certificate ID. It's the same steps you're doing now.
+  </Accordion>
+</AccordionGroup>
 
 ## Find your Account ID
 
@@ -329,43 +330,29 @@ Open a new Estimate (or your account's renamed equivalent), choose a customer, a
 **Elastly Rate** column should populate with Elastly's recommendation within a moment. The native
 **rate** stays exactly as NetSuite set it. Elastly only advises.
 
-If nothing happens, work through this in order. Each step rules out a specific, real failure mode:
+<Accordion title="If the Elastly Rate doesn't appear, work through this in order" icon="stethoscope">
+  Each step rules out a specific, real failure mode, not a guess.
 
-<Steps>
-  <Step title="Open the browser console (F12) before you test">
-    This is a _Client_ Script, so it runs in the browser, not just on NetSuite's server. A load-time
-    error (bad upload, corrupted file) shows up here and nowhere else. If you see nothing here either,
-    the script loaded fine and the problem is further down this list.
-  </Step>
-  <Step title="Check the Script Deployment's Execution Log">
-    An empty log plus a price never appearing means the script's own early checks are failing silently
-    (most often the parameter IDs, see the warning above, or parameter values left blank on _this
-    specific_ deployment).
-  </Step>
-  <Step title="Confirm the parameter IDs are exact">
-    They must be exactly `custscript_elastly_base_url` and `custscript_elastly_api_key` on the script
-    record (not doubled), and both must have real _values_ filled in on the deployment you're actually
-    testing.
-  </Step>
-  <Step title="Confirm the deployment Audience includes your test user's role">
-    Released status doesn't matter if the tester isn't in the Audience list.
-  </Step>
-  <Step title="Confirm the entry points are checked">
-    Field Changed Function and Post Sourcing Function must be checked on the script record, matching the
-    table above.
-  </Step>
-  <Step title="Isolate the script from client scripts in general">
-    Does any _other_ client script you already run (for example your own pricing calculation) still work
-    on this same record? If yes, the problem is scoped to Elastly's script. If nothing runs at all,
-    something account- or role-wide is blocking client scripts, which is a bigger issue than this
-    integration.
-  </Step>
-  <Step title="Check the base URL and key">
-    The API base URL should have **no trailing slash**, and the API key should not be revoked (check
-    **Settings → API keys** in Elastly; a revoked key returns 401, visible in the Execution Log as an
-    error, not silence).
-  </Step>
-</Steps>
+  1. **Open the browser console (F12) before you test.** This is a _Client_ Script, so it runs in the
+     browser. A load-time error (bad upload, corrupted file) shows up here and nowhere else. Nothing
+     here means the script loaded fine and the problem is further down.
+  2. **Check the Script Deployment's Execution Log.** An empty log plus a price never appearing means
+     the script's early checks are failing silently, most often the parameter IDs (see the warning
+     above) or parameter values left blank on _this specific_ deployment.
+  3. **Confirm the parameter IDs are exact:** `custscript_elastly_base_url` and
+     `custscript_elastly_api_key` on the script record (not doubled), each with a real _value_ on the
+     deployment you're testing.
+  4. **Confirm the deployment Audience includes your test user's role.** Released status doesn't matter
+     if the tester isn't in the Audience list.
+  5. **Confirm Field Changed Function and Post Sourcing Function are checked** on the script record,
+     matching the table above.
+  6. **Isolate Elastly's script from client scripts in general.** Does any _other_ client script you
+     run still work on this record? If yes, the problem is scoped to Elastly's script. If nothing runs
+     at all, something account- or role-wide is blocking client scripts, a bigger issue than this
+     integration.
+  7. **Check the base URL and key.** The base URL should have no trailing slash, and the API key should
+     not be revoked (a revoked key returns 401, visible in the Execution Log as an error, not silence).
+</Accordion>
 
 <Note>
   **Two-way: write-back.** Real-time pricing and price write-back are two separate mechanisms, and it's
