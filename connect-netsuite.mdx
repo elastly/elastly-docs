@@ -250,12 +250,12 @@ from a file through the UI, so you create them yourself.
   </Step>
 </Steps>
 
-| ID                       | Type       | Field                                                                   |
-| ------------------------ | ---------- | ----------------------------------------------------------------------- |
-| `elastly_rate`           | Currency   | **Elastly Rate.** Elastly writes the recommended price here. Display-only. |
-| `elastly_reason`         | Text Area  | **Elastly Rate Reason.** The short explanation behind the price. Display-only. |
-| `elastly_sales_feedback` | Text Area  | **Elastly Sales Feedback.** The rep's note versus Elastly's rate, read back to learn. Editable. |
-| `elastly_decision_id`    | Text       | **Elastly Decision Id.** Ties the quote line back to what Elastly recommended. Display-only. |
+| Type this as the ID       | Type       | Field                                                                   |
+| ------------------------- | ---------- | ----------------------------------------------------------------------- |
+| `_elastly_rate`           | Currency   | **Elastly Rate.** Elastly writes the recommended price here. Display-only. |
+| `_elastly_reason`         | Text Area  | **Elastly Rate Reason.** The short explanation behind the price. Display-only. |
+| `_elastly_sales_feedback` | Text Area  | **Elastly Sales Feedback.** The rep's note versus Elastly's rate, read back to learn. Editable. |
+| `_elastly_decision_id`    | Text       | **Elastly Decision Id.** Ties the quote line back to what Elastly recommended. Display-only. |
 
 If a column doesn't show on the Estimate/Sales Order form after you create it, add it to the line-item
 grid from the form's Screen Fields customization.
@@ -279,27 +279,27 @@ the script doesn't implement them and checking them does nothing.
 
 ### Add the two script parameters
 
-Still on the script record, add two parameters. **The ID field is the one place this setup goes wrong
-most often.** NetSuite automatically prepends `custscript_` to whatever you type, so type **only** the
-part after that prefix:
+Still on the script record, add two parameters. NetSuite prepends `custscript` to the ID (no
+underscore of its own), so **type the leading underscore yourself**, exactly as you did for the line
+fields:
 
-| Label            | Type this as the ID | NetSuite produces             |
-| ---------------- | ------------------- | ----------------------------- |
-| Elastly base URL | `elastly_base_url`  | `custscript_elastly_base_url` |
-| Elastly API key  | `elastly_api_key`   | `custscript_elastly_api_key`  |
+| Label            | Type this as the ID  | NetSuite saves it as          |
+| ---------------- | -------------------- | ----------------------------- |
+| Elastly base URL | `_elastly_base_url`  | `custscript_elastly_base_url` |
+| Elastly API key  | `_elastly_api_key`   | `custscript_elastly_api_key`  |
 
 <Warning>
-  **The #1 setup mistake.** Do not type `custscript_elastly_base_url` into the ID field. Type only
-  `elastly_base_url`, and NetSuite prepends `custscript_` to give you `custscript_elastly_base_url`. If
-  you type the prefix yourself, NetSuite adds another on top and you get a doubled
-  `custscriptcustscript_elastly_base_url` that the script can never read.
-
-  The symptom is close to impossible to diagnose from the outside: the deployment shows **Released**,
-  the audience is correct, and yet there is zero Execution Log activity and zero calls ever reach
-  Elastly, because the script's first lines check for these parameters and exit immediately, silently,
-  before logging anything, if either comes back empty. If a fresh install produces no activity
-  anywhere, check this first.
+  **The ID field is where this setup goes wrong most.** Drop the leading underscore and you get
+  `custscriptelastly_base_url`; type the whole prefix yourself and you get a doubled
+  `custscriptcustscript_elastly_base_url`. Either way the script can't read it, and nothing warns you.
 </Warning>
+
+<Accordion title="Why a wrong ID is so hard to spot" icon="magnifying-glass">
+  The deployment shows **Released**, the audience is correct, and yet there is zero Execution Log
+  activity and zero calls ever reach Elastly. The script's first lines check for these parameters and
+  exit immediately, silently, before logging anything, if either comes back empty. If a fresh install
+  produces no activity anywhere, check the parameter IDs first.
+</Accordion>
 
 Parameter _definitions_ (the two rows above) live on the script record. Parameter _values_ (the actual
 URL and key) are set separately, per **deployment**, in the next step.
