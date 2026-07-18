@@ -1,0 +1,307 @@
+---
+title: "The connector framework"
+sidebarTitle: "Connector framework"
+description: "Implement a few functions that read your data. The framework runs the whole sync: paging, checkpoints, retries, and write-back leases."
+icon: "bolt"
+---
+
+The [feeding data](/sdks/build-a-connector/feeding-data) and
+[applying prices](/sdks/build-a-connector/applying-prices) pages show the raw loop: you open a batch,
+page your records, commit, poll, then claim and acknowledge write-backs by hand. The connector framework
+does all of that for you. You implement functions that read your system, and the runtime handles paging,
+per-page checkpoints, retries, batching, the commit, the drain wait, and the write-back leases.
+
+It ships in every SDK: `defineConnector` in TypeScript, `define_connector` in Python,
+`ConnectorDefinition` in PHP and Java, `ConnectorRuntime` in Go. Same model, same guarantees.
+
+## The two functions that matter
+
+You implement two required readers, `fetchProducts` and `fetchCustomers`, and add the optional ones as
+you need them:
+
+| You implement    | The runtime does                                                       |
+| ---------------- | ---------------------------------------------------------------------- |
+| `fetchProducts`  | Pages your catalog into the product entity                            |
+| `fetchCustomers` | Pages who you sell to into the customer entity                        |
+| `fetchQuotes`    | Pages closed quotes (won and lost) so the model learns                |
+| `fetchOrders`    | Pages sold orders                                                      |
+| `applyPrice`     | Called once per approved price so you write it into your system       |
+
+Each reader takes a cursor and returns one page of records plus the next cursor, or a null cursor when
+the entity is exhausted. Page everything that can grow; a reader that returns its whole table in one page
+works in a demo and times out at a million rows.
+
+## A complete connector
+
+This implements all four readers and the write-back applier, runs the sync, then drains approved prices.
+Leave out `fetchQuotes`, `fetchOrders`, or `applyPrice` and the runtime skips what you did not implement,
+so a catalog-only storefront implements the first two and stops.
+
+<CodeGroup>
+
+```ts TypeScript
+import { defineConnector, FileCheckpointStore, Elastly } from "@elastly/sdk"
+
+const elastly = new Elastly({ apiKey: process.env.ELASTLY_CONNECTOR_KEY })
+
+const connector = defineConnector({
+  async fetchProducts(cursor) {
+    const { rows, next } = await erp.products(cursor)
+    return {
+      records: rows.map((r) => ({
+        sku: r.sku,
+        externalId: r.id,
+        name: r.name,
+        category: r.category,
+        costCents: r.unitCostCents,
+        currentPriceCents: r.listPriceCents,
+      })),
+      nextCursor: next,
+    }
+  },
+  async fetchCustomers(cursor) {
+    const { rows, next } = await erp.customers(cursor)
+    return { records: rows.map((r) => ({ externalId: r.id, name: r.name, segment: r.tier })), nextCursor: next }
+  },
+  async fetchQuotes(cursor) {
+    const { rows, next } = await erp.closedQuotes(cursor)
+    return { records: rows, nextCursor: next }
+  },
+  async applyPrice(task) {
+    await erp.setPrice(task.productExternalId, task.priceCents)
+    return { id: task.id, ok: true }
+  },
+})
+
+const report = await connector.sync({
+  client: elastly,
+  checkpoints: new FileCheckpointStore("./elastly-checkpoints.json"),
+})
+console.log(report.status, report.staged, report.warnings)
+
+const drain = await connector.drainWritebacks({ client: elastly })
+console.log(drain.applied, drain.failed, drain.expired)
+```
+
+```python Python
+import elastly
+from elastly.connector import define_connector, connector_client, FileCheckpointStore, Page, WritebackResult
+
+class MyConnector:
+    def fetch_products(self, cursor):
+        rows, nxt = erp.products(cursor)
+        records = [
+            {"sku": r.sku, "externalId": r.id, "name": r.name, "category": r.category,
+             "costCents": r.unit_cost_cents, "currentPriceCents": r.list_price_cents}
+            for r in rows
+        ]
+        return Page(records=records, next_cursor=nxt)
+
+    def fetch_customers(self, cursor):
+        rows, nxt = erp.customers(cursor)
+        return Page(records=[{"externalId": r.id, "name": r.name, "segment": r.tier} for r in rows], next_cursor=nxt)
+
+    def fetch_quotes(self, cursor):
+        rows, nxt = erp.closed_quotes(cursor)
+        return Page(records=rows, next_cursor=nxt)
+
+    def apply_price(self, task):
+        erp.set_price(task.product_external_id, task.price_cents)
+        return WritebackResult(id=task.id, ok=True)
+
+connector = define_connector(MyConnector())
+client = connector_client(elastly.ApiClient(elastly.Configuration(access_token="elastly_live_...")))
+
+report = connector.sync(client, FileCheckpointStore("./elastly-checkpoints.json"))
+print(report.status, report.staged, report.warnings)
+
+drain = connector.drain_writebacks(client)
+print(drain.applied, drain.failed, drain.expired)
+```
+
+```php PHP
+use Elastly\Configuration;
+use Elastly\Connector\AppliesPrices;
+use Elastly\Connector\ConnectorDefinition;
+use Elastly\Connector\ElastlyConnector;
+use Elastly\Connector\ElastlyConnectorClient;
+use Elastly\Connector\FetchesQuotes;
+use Elastly\Connector\FileCheckpointStore;
+use Elastly\Connector\Page;
+use Elastly\Connector\WritebackResult;
+use Elastly\Connector\WritebackTask;
+
+final class MyConnector implements ElastlyConnector, FetchesQuotes, AppliesPrices
+{
+    public function __construct(private Erp $erp) {}
+
+    public function fetchProducts(?string $cursor): Page
+    {
+        [$rows, $next] = $this->erp->products($cursor);
+        $records = array_map(fn ($r) => [
+            'sku' => $r->sku, 'externalId' => $r->id, 'name' => $r->name,
+            'category' => $r->category, 'costCents' => $r->unitCostCents,
+            'currentPriceCents' => $r->listPriceCents,
+        ], $rows);
+        return new Page($records, $next);
+    }
+
+    public function fetchCustomers(?string $cursor): Page
+    {
+        [$rows, $next] = $this->erp->customers($cursor);
+        return new Page(array_map(fn ($r) => ['externalId' => $r->id, 'name' => $r->name], $rows), $next);
+    }
+
+    public function fetchQuotes(?string $cursor): Page
+    {
+        [$rows, $next] = $this->erp->closedQuotes($cursor);
+        return new Page($rows, $next);
+    }
+
+    public function applyPrice(WritebackTask $task): WritebackResult
+    {
+        $this->erp->setPrice($task->productExternalId, $task->priceCents);
+        return new WritebackResult($task->id, true);
+    }
+}
+
+$config = Configuration::getDefaultConfiguration()->setAccessToken('elastly_live_...');
+$connector = new ConnectorDefinition(new MyConnector($erp));
+$client = new ElastlyConnectorClient($config);
+
+$report = $connector->sync($client, new FileCheckpointStore('./elastly-checkpoints.json'));
+echo $report->status->value . PHP_EOL;
+
+$drain = $connector->drainWritebacks($client);
+echo "{$drain->applied}/{$drain->failed}/{$drain->expired}" . PHP_EOL;
+```
+
+```java Java
+import io.elastly.sdk.ApiClient;
+import io.elastly.sdk.connector.*;
+import java.nio.file.Paths;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+class MyConnector implements ElastlyConnector, FetchesQuotes, AppliesPrices {
+    private final Erp erp;
+    MyConnector(Erp erp) { this.erp = erp; }
+
+    public Page<Map<String, Object>> fetchProducts(String cursor) {
+        var page = erp.products(cursor);
+        List<Map<String, Object>> records = page.rows().stream().map(r -> Map.<String, Object>of(
+            "sku", r.sku(), "externalId", r.id(), "name", r.name(),
+            "category", r.category(), "costCents", r.unitCostCents(),
+            "currentPriceCents", r.listPriceCents())).collect(Collectors.toList());
+        return Page.of(records, page.next());
+    }
+
+    public Page<Map<String, Object>> fetchCustomers(String cursor) {
+        var page = erp.customers(cursor);
+        return Page.of(page.rows().stream().map(r -> Map.<String, Object>of(
+            "externalId", r.id(), "name", r.name())).collect(Collectors.toList()), page.next());
+    }
+
+    public Page<Map<String, Object>> fetchQuotes(String cursor) {
+        var page = erp.closedQuotes(cursor);
+        return Page.of(page.rows(), page.next());
+    }
+
+    public WritebackResult applyPrice(WritebackTask task) {
+        erp.setPrice(task.getProductExternalId(), task.getPriceCents());
+        return WritebackResult.ok(task.getId());
+    }
+}
+
+ApiClient apiClient = new ApiClient();
+apiClient.setBearerToken("elastly_live_...");
+
+ConnectorDefinition connector = ConnectorDefinition.define(new MyConnector(erp));
+ConnectorClient client = ElastlyConnectorClient.from(apiClient);
+
+SyncReport report = connector.sync(client, new FileCheckpointStore(Paths.get("./elastly-checkpoints.json")));
+System.out.println(report.getStatus() + " " + report.getStaged() + " " + report.getWarnings());
+
+DrainReport drain = connector.drainWritebacks(client);
+System.out.println(drain.getApplied() + " " + drain.getFailed() + " " + drain.getExpired());
+```
+
+```go Go
+type MyConnector struct{ erp *Erp }
+
+func (c *MyConnector) FetchProducts(ctx context.Context, cursor string) (elastly.RecordPage, error) {
+    rows, next := c.erp.Products(cursor)
+    records := make([]elastly.Record, len(rows))
+    for i, r := range rows {
+        records[i] = elastly.Record{
+            "sku": r.SKU, "externalId": r.ID, "name": r.Name, "category": r.Category,
+            "costCents": r.UnitCostCents, "currentPriceCents": r.ListPriceCents,
+        }
+    }
+    return elastly.RecordPage{Records: records, NextCursor: next}, nil
+}
+
+func (c *MyConnector) FetchCustomers(ctx context.Context, cursor string) (elastly.RecordPage, error) {
+    rows, next := c.erp.Customers(cursor)
+    records := make([]elastly.Record, len(rows))
+    for i, r := range rows {
+        records[i] = elastly.Record{"externalId": r.ID, "name": r.Name}
+    }
+    return elastly.RecordPage{Records: records, NextCursor: next}, nil
+}
+
+func (c *MyConnector) FetchQuotes(ctx context.Context, cursor string) (elastly.RecordPage, error) {
+    rows, next := c.erp.ClosedQuotes(cursor)
+    return elastly.RecordPage{Records: rows, NextCursor: next}, nil
+}
+
+func (c *MyConnector) ApplyPrice(ctx context.Context, task elastly.WritebackTask) (elastly.WritebackResult, error) {
+    c.erp.SetPrice(task.ProductExternalID, task.PriceCents)
+    return elastly.WritebackResult{ID: task.ID, OK: true}, nil
+}
+
+runtime := elastly.NewConnectorRuntime(&MyConnector{erp: erp})
+client := elastly.NewConnectorClient(apiClient)
+
+report, err := runtime.Sync(ctx, client, elastly.NewFileCheckpointStore("./elastly-checkpoints.json"))
+if err != nil {
+    return err
+}
+fmt.Println(report.Status, report.Staged, report.Warnings)
+
+drain, err := runtime.DrainWritebacks(ctx, client)
+if err != nil {
+    return err
+}
+fmt.Println(drain.Applied, drain.Failed, drain.Expired)
+```
+
+</CodeGroup>
+
+## The sync is crash-safe
+
+The checkpoint store saves the open batch id and each entity's cursor after every page. A process that
+dies mid-sync resumes from the last saved cursor and the same open batch, and re-sent pages are
+deduplicated on your external ids, so a retry never doubles your data. Use `InMemoryCheckpointStore`
+for a one-shot run and `FileCheckpointStore` (or your own store) for a scheduled job that must survive a
+restart.
+
+The runtime stages entities in dependency order (products, then customers, then quotes and orders) no
+matter what order you pass, so a line always resolves to a product and customer already sent. The sync
+report tells you what landed: `status`, the per-entity `staged` counts, `skippedOverCap`, and any
+`warnings`.
+
+## Write-backs are leased
+
+`drainWritebacks` claims a batch of approved prices, calls your `applyPrice` for each, and acknowledges
+the results, with leases handled for you. Delivery is at-least-once, so make `applyPrice` idempotent:
+setting the same price twice must be harmless. A task whose lease expires before you finish is counted
+as `expired` and returned to the queue, never acknowledged, so it reaches you again on the next drain.
+
+<Note>
+  **Echo the decision id on your quote lines.** When you map a closed quote in `fetchQuotes`, carry the
+  `pricingDecisionId` Elastly returned when it priced the line. That id is the whole learning loop: it
+  ties what Elastly recommended to what your rep charged. Quote lines without it are still ingested, but
+  the runtime warns loudly and the model learns nothing from them.
+</Note>

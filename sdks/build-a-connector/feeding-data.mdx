@@ -9,6 +9,11 @@ You feed Elastly your data in one batch: open it, stage each entity in dependenc
 poll until it drains. This works in every language. Set up your client first (see the
 [overview](/sdks/build-a-connector)).
 
+<Tip>
+  The [connector framework](/sdks/build-a-connector/connector-framework) does this whole loop for you,
+  with paging and checkpoints handled. Read this page when you want to drive each step yourself.
+</Tip>
+
 ## The records you send
 
 Every SDK sends the same canonical shapes. Money is always integer cents. These are the fields; the

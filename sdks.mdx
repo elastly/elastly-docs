@@ -1,28 +1,32 @@
 ---
 title: "SDKs"
 sidebarTitle: "Overview"
-description: "A typed client for five languages, generated from the same contract our servers validate against. Pick yours and go."
+description: "A typed client for five languages. Each one prices with a fallback, verifies webhooks, and runs a connector for you. Pick yours and go."
 icon: "code"
 ---
 
-Elastly ships a typed client for five languages. Four are generated from the same
-[OpenAPI contract](/api/overview) our servers validate against, so their types cannot drift from the
-API. The TypeScript SDK is hand-written and does more.
+Elastly ships a typed client for five languages, and they do the same things. Each one prices a line
+with a hard deadline and a fallback so a slow or down Elastly never breaks your quote screen, raises
+typed errors you can branch on, verifies webhooks, and runs a connector that pages, checkpoints,
+retries, and reports for you.
+
+Four are generated from the same [OpenAPI contract](/api/overview) our servers validate against, so
+their types cannot drift from the API. The TypeScript SDK is hand-written. Same surface, same features.
 
 ## Pick your language
 
 <Columns cols={3}>
   <Card title="TypeScript" icon="/logos/typescript.svg" href="/sdks/typescript">
-    Fail-open pricing, retries, and the connector framework.
+    Node.js, ESM and CommonJS.
   </Card>
   <Card title="Python" icon="/logos/python.svg" href="/sdks/python">
-    Fully typed, for scripts and services.
+    For scripts and services.
   </Card>
   <Card title="PHP" icon="/logos/php.svg" href="/sdks/php">
     Framework-agnostic, Laravel-friendly.
   </Card>
   <Card title="Java" icon="/logos/java.svg" href="/sdks/java">
-    On Maven Central and Gradle.
+    Maven Central and Gradle.
   </Card>
   <Card title="Go" icon="/logos/go.svg" href="/sdks/go">
     A single idiomatic module.
@@ -52,7 +56,7 @@ composer require elastly/elastly-php
 <dependency>
   <groupId>io.elastly</groupId>
   <artifactId>elastly-sdk</artifactId>
-  <version>0.1.1</version>
+  <version>0.2.0</version>
 </dependency>
 ```
 

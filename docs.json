@@ -94,9 +94,9 @@
                 "group": "Build a connector",
                 "pages": [
                   "sdks/build-a-connector",
+                  "sdks/build-a-connector/connector-framework",
                   "sdks/build-a-connector/feeding-data",
-                  "sdks/build-a-connector/applying-prices",
-                  "sdks/build-a-connector/typescript-framework"
+                  "sdks/build-a-connector/applying-prices"
                 ]
               }
             ]
@@ -197,6 +197,10 @@
     {
       "source": "/build-a-connector",
       "destination": "/sdks/build-a-connector"
+    },
+    {
+      "source": "/sdks/build-a-connector/typescript-framework",
+      "destination": "/sdks/build-a-connector/connector-framework"
     }
   ]
 }

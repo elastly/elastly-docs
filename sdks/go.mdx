@@ -1,11 +1,15 @@
 ---
 title: "Go SDK"
 sidebarTitle: "Go"
-description: "Call the Elastly pricing API from Go. Price lines, ingest your catalog, and claim write-backs with a typed client generated from the same contract our servers validate against."
+description: "Price lines with a hard deadline and a fallback, verify webhooks, and sync a connector, from Go."
 icon: "/logos/go.svg"
 ---
 
-The `github.com/elastly/elastly-go` module is the supported way to call Elastly from Go. It is generated from the same [OpenAPI contract](/api/overview) our own servers validate against, so its types cannot drift from the API. It covers the full v1 surface: pricing, ingest, and write-backs.
+The `github.com/elastly/elastly-go` module is the supported way to call Elastly from Go. The request and
+response types are generated from the same [OpenAPI contract](/api/overview) our servers validate
+against, so they cannot drift from the API. On top of that it adds what every integration needs: a price
+call that never breaks your quote screen, typed errors, webhook verification, and a connector that
+pages, checkpoints, retries, and reports for you.
 
 ```bash
 go get github.com/elastly/elastly-go@latest
@@ -13,67 +17,162 @@ go get github.com/elastly/elastly-go@latest
 
 ## Keys and scopes
 
-Create API keys under [Settings → API keys](https://app.elastly.io/settings). Scopes are separate on purpose: an ERP key prices lines, a connector key ingests data and claims write-backs. A serving key can never write your catalog, and a connector key can never read prices. Pass the key as a bearer token through the request context.
+Create API keys under [Settings → API keys](https://app.elastly.io/settings). Scopes are separate on
+purpose: a serving key can never write your catalog, and a connector key can never read prices.
+
+| Scope         | Used for               | SDK surface                                             |
+| ------------- | ---------------------- | ------------------------------------------------------- |
+| **ERP**       | Price serving          | `Prices`                                                |
+| **Connector** | Ingest and write-backs | `ConnectorClient`, `ConnectorRuntime`                   |
 
 ```go
+import elastly "github.com/elastly/elastly-go"
+
+client := elastly.NewAPIClient(elastly.NewConfiguration())
 ctx := context.WithValue(context.Background(), elastly.ContextAccessToken, "elastly_live_...")
+
+prices := elastly.NewPrices(elastly.NewTransport(client))
 ```
-
-## Price a line
-
-`GetPrices` takes up to 100 lines in one call. Each response line is either a priced result or a typed per-line error, so one unknown SKU fails that line alone and never the whole batch.
-
-```go
-package main
-
-import (
-	"context"
-	"fmt"
-	"log"
-
-	elastly "github.com/elastly/elastly-go"
-)
-
-func main() {
-	client := elastly.NewAPIClient(elastly.NewConfiguration())
-	ctx := context.WithValue(context.Background(), elastly.ContextAccessToken, "elastly_live_...")
-
-	line := *elastly.NewPricesRequestLinesInner()
-	line.SetProductSku("SKU-1042")
-	line.SetCustomerExternalId("CUST-88")
-	line.SetQuantity(25)
-
-	request := elastly.NewPricesRequest([]elastly.PricesRequestLinesInner{line})
-
-	response, _, err := client.PricesAPI.GetPrices(ctx).
-		IdempotencyKey("one-key-per-logical-request").
-		PricesRequest(*request).
-		Execute()
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	for _, l := range response.Lines {
-		if priced := l.PricesResponseLinesInnerOneOf; priced != nil {
-			fmt.Println(priced.PriceCents, priced.Currency, priced.ReasonSummary)
-		}
-	}
-}
-```
-
-Every priced call needs an `Idempotency-Key`. Use a fresh key for each logical request and reuse the same key when you retry, so a retried call is served from the stored response and never prices twice.
 
 ## The one thing to get right: the decision id
 
-Every priced line comes back with a `pricingDecisionId`. Store it in your own system, on the quote line it priced. When that quote later closes and you send it back to Elastly, the id is how Elastly connects what it recommended to what your rep actually did. That difference is what the pricing model learns from.
+Every priced line comes back with a `PricingDecisionID`. **Store it in your own system, on the quote
+line it priced.** When that quote later closes and you send it back to Elastly, the id ties what Elastly
+recommended to what your rep actually charged. That difference is what the model learns from.
 
-<Info>
-  Skip this and everything still looks like it works: prices serve, quotes ingest, dashboards fill. But the model learns nothing from your quotes, and nothing will tell you. Persist the decision id first, before anything else.
-</Info>
+Skip it and everything still looks like it works: prices serve, quotes ingest, dashboards fill. But the
+model learns nothing from your quotes, and nothing tells you. So wire it first:
 
-## Next steps
+```go
+result, err := prices.Get(ctx, line, policy)
+if err != nil {
+    return err
+}
 
-- [Prices, ingest, and write-backs](/api/overview) in the API reference
-- [Build your own connector](/sdks/build-a-connector) for a homegrown ERP or storefront
+if result.Source == elastly.PriceSourceElastly {
+    erp.UpdateQuoteLine(quoteLineID, result.Price.PriceCents, result.Price.PricingDecisionID)
+}
+```
 
-The source is on [GitHub](https://github.com/elastly/elastly-go). It is generated, so file an issue rather than a pull request against generated code.
+## Price a line, with a fallback
+
+A price call usually runs inside a rep's quote screen or a checkout render. If Elastly is slow or down,
+your system must keep working. The SDK makes that a policy you declare, not code you write:
+
+```go
+line := elastly.PricesRequestLinesInner{}
+line.SetProductSku("VLV-200")
+line.SetCustomerExternalId("cust-1042")
+line.SetQuantity(25)
+
+policy := elastly.StaticFallback(
+    func(line elastly.PricesRequestLinesInner, cause elastly.FailOpenCause) (*elastly.FallbackPrice, error) {
+        return &elastly.FallbackPrice{PriceCents: erp.ListPrice(line.GetProductSku()), Currency: "USD"}, nil
+    },
+    elastly.FailOpenDeadline(800*time.Millisecond),
+)
+
+result, err := prices.Get(ctx, line, policy)
+if err != nil {
+    return err
+}
+
+switch result.Source {
+case elastly.PriceSourceElastly:
+    render(result.Price.PriceCents, result.Price.ReasonSummary)
+case elastly.PriceSourceFallback:
+    render(result.Fallback.PriceCents) // result.Cause.Reason tells you why
+case elastly.PriceSourceUnavailable:
+    // no price available
+}
+```
+
+Under this policy a timeout, a 5xx, a rate limit, a malformed body, or a network failure never returns
+an error. The SDK retries where it can, then calls your fallback and returns a result with
+`Source == PriceSourceFallback` and the cause attached. If your resolver returns `(nil, nil)`, you get
+`PriceSourceUnavailable`, an explicit typed no-answer.
+
+Requests that mean your call is wrong (`invalid_request`, `feature_not_enabled`) always return a typed
+error, because a bug in your integration is not an outage to paper over. For batch jobs where a wrong
+price is worse than no price, use `ThrowOnFailure`, which returns every failure as an error:
+
+```go
+results, err := prices.GetMany(ctx, lines, elastly.ThrowOnFailure())
+```
+
+`GetMany` prices up to 100 lines in one HTTP call. One unknown SKU fails that line alone, never the
+whole batch.
+
+## Typed errors
+
+Every contract error code is an `errors.Is` target, and the full detail lives on `*APIStatusError`:
+
+```go
+_, err := prices.Get(ctx, line, elastly.ThrowOnFailure())
+
+var apiErr *elastly.APIStatusError
+if errors.As(err, &apiErr) {
+    fmt.Println(apiErr.Code, apiErr.Status, apiErr.RequestID, apiErr.Param)
+}
+
+if errors.Is(err, elastly.ErrorCodeRateLimited) {
+    // back off; apiErr.RetryAfter carries the delay
+}
+if errors.Is(err, context.DeadlineExceeded) {
+    // the deadline budget was spent
+}
+```
+
+Every code is exported as a constant (`ErrorCodeUnknownProduct`, `ErrorCodeNoCostBasis`,
+`ErrorCodeMonthlyVolumeExceeded`, and the rest) with its HTTP status via `.HTTPStatus()`. Transport
+faults are their own types: `*NetworkError`, `*TimeoutError`, `*MalformedResponseError`.
+
+## Verify a webhook
+
+```go
+verifier := elastly.NewWebhookVerifier("whsec_...")
+
+event, err := verifier.Verify(rawBody, req.Header.Get("Elastly-Signature"))
+if err != nil {
+    http.Error(w, "bad signature", http.StatusBadRequest)
+    return
+}
+
+if data, ok := event.SyncCompleted(); ok {
+    fmt.Println(data.Connector, data.Totals)
+}
+```
+
+`Verify` checks the signature in constant time, rejects anything older than five minutes, and returns a
+typed event. It returns a `*SignatureVerificationError` on a bad signature, a replay, or a malformed
+body. The four event types are `sync.completed`, `recommendation.created`, `price.written_back`, and
+`test.ping`, each with a typed accessor (`SyncCompleted`, `RecommendationCreated`, `PriceWrittenBack`,
+`TestPing`).
+
+## What the SDK handles for you
+
+- **Idempotency.** Every mutating call carries a key that stays stable across retries, so a retried
+  price call can never double-count against your plan.
+- **Retries.** Failed calls back off with full jitter and honor `Retry-After` and `RateLimit-Reset`.
+- **A circuit breaker.** After repeated failures it stops hammering Elastly and goes straight to your
+  fallback, then probes once to recover.
+- **Fail-open telemetry.** Every call that falls open reports itself to Elastly (fire and forget, never
+  on your latency path), so an outage that hit your quote screen shows up in your dashboard.
+
+## Build a connector
+
+To push your own ERP or storefront into Elastly, the SDK ships a connector runtime: implement a few
+methods that read your data, and `ConnectorRuntime` runs the whole sync, with paging, checkpoints,
+retries, and write-back leases handled for you.
+
+<Card title="Build a connector" icon="wrench" href="/sdks/build-a-connector">
+  Feed your data in, apply approved prices back, in Go or any other language.
+</Card>
+
+## Versioning
+
+The SDK's major version is bound to the API version in the URL. Every `0.x` and `1.x` release talks to
+`/api/v1`, so an upgrade within a major is always safe.
+
+The source is on [GitHub](https://github.com/elastly/elastly-go). It is generated, so file an issue
+rather than a pull request against generated code.

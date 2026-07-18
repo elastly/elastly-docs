@@ -1,11 +1,15 @@
 ---
 title: "PHP SDK"
 sidebarTitle: "PHP"
-description: "Call the Elastly pricing API from PHP or Laravel. Price lines, ingest your catalog, and claim write-backs with a typed client generated from the same contract our servers validate against."
+description: "Price lines with a hard deadline and a fallback, verify webhooks, and sync a connector, from PHP or Laravel."
 icon: "/logos/php.svg"
 ---
 
-The `elastly/elastly-php` package is the supported way to call Elastly from PHP. It is generated from the same [OpenAPI contract](/api/overview) our own servers validate against, so its types cannot drift from the API. It covers the full v1 surface: pricing, ingest, and write-backs.
+The `elastly/elastly-php` package is the supported way to call Elastly from PHP. The request and
+response types are generated from the same [OpenAPI contract](/api/overview) our servers validate
+against, so they cannot drift from the API. On top of that it adds what every integration needs: a price
+call that never breaks your quote screen, typed errors, webhook verification, and a connector that
+pages, checkpoints, retries, and reports for you.
 
 ```bash
 composer require elastly/elastly-php
@@ -15,76 +19,186 @@ PHP 8.1 or later.
 
 ## Keys and scopes
 
-Create API keys under [Settings → API keys](https://app.elastly.io/settings). Scopes are separate on purpose: an ERP key prices lines, a connector key ingests data and claims write-backs. A serving key can never write your catalog, and a connector key can never read prices. Pass the key as a bearer token on the `Configuration`.
+Create API keys under [Settings → API keys](https://app.elastly.io/settings). Scopes are separate on
+purpose: a serving key can never write your catalog, and a connector key can never read prices.
+
+| Scope         | Used for               | SDK surface                                             |
+| ------------- | ---------------------- | ------------------------------------------------------- |
+| **ERP**       | Price serving          | `PricesNamespace`                                       |
+| **Connector** | Ingest and write-backs | `IngestApi`, `WritebacksApi`, `ConnectorDefinition`     |
 
 ```php
-$config = Elastly\Configuration::getDefaultConfiguration()
-    ->setAccessToken('elastly_live_...');
-```
-
-## Price a line
-
-`getPrices` takes up to 100 lines in one call. Each response line is either a priced result or a typed per-line error, so one unknown SKU fails that line alone and never the whole batch.
-
-```php
-<?php
-
-require __DIR__ . '/vendor/autoload.php';
-
-$config = Elastly\Configuration::getDefaultConfiguration()
-    ->setAccessToken('elastly_live_...');
-
-$prices = new Elastly\Api\PricesApi(null, $config);
-
-$line = (new Elastly\Model\PricesRequestLinesInner())
-    ->setProductSku('SKU-1042')
-    ->setCustomerExternalId('CUST-88')
-    ->setQuantity(25);
-
-$request = (new Elastly\Model\PricesRequest())->setLines([$line]);
-
-$response = $prices->getPrices(bin2hex(random_bytes(16)), $request);
-
-foreach ($response->getLines() as $result) {
-    if ($result->getOk()) {
-        echo $result->getPriceCents() . ' ' . $result->getCurrency() . ': ' . $result->getReasonSummary() . PHP_EOL;
-    } else {
-        echo 'failed: ' . $result->getMessage() . PHP_EOL;
-    }
-}
-```
-
-Every priced call needs an `Idempotency-Key` (the first argument to `getPrices`). Use a fresh key for each logical request and reuse the same key when you retry, so a retried call is served from the stored response and never prices twice.
-
-## Laravel
-
-The package is framework-agnostic, so `composer require` is all Laravel needs. There is no service provider to register and nothing to publish. To resolve a configured client from the container, bind it once in a service provider:
-
-```php
-use Elastly\Api\PricesApi;
 use Elastly\Configuration;
+use Elastly\Serving\PricesNamespace;
+use Elastly\Transport\ElastlyTransport;
 
-$this->app->singleton(PricesApi::class, function () {
-    $config = Configuration::getDefaultConfiguration()
-        ->setAccessToken(config('services.elastly.key'));
-
-    return new PricesApi(null, $config);
-});
+$config = Configuration::getDefaultConfiguration()->setAccessToken('elastly_live_...');
+$prices = new PricesNamespace(new ElastlyTransport($config));
 ```
-
-Then type-hint `PricesApi` anywhere Laravel resolves dependencies.
 
 ## The one thing to get right: the decision id
 
-Every priced line comes back with a `pricingDecisionId`. Store it in your own system, on the quote line it priced. When that quote later closes and you send it back to Elastly, the id is how Elastly connects what it recommended to what your rep actually did. That difference is what the pricing model learns from.
+Every priced line comes back with a `pricingDecisionId`. **Store it in your own system, on the quote
+line it priced.** When that quote later closes and you send it back to Elastly, the id ties what Elastly
+recommended to what your rep actually charged. That difference is what the model learns from.
 
-<Info>
-  Skip this and everything still looks like it works: prices serve, quotes ingest, dashboards fill. But the model learns nothing from your quotes, and nothing will tell you. Persist the decision id first, before anything else.
-</Info>
+Skip it and everything still looks like it works: prices serve, quotes ingest, dashboards fill. But the
+model learns nothing from your quotes, and nothing tells you. So wire it first:
 
-## Next steps
+```php
+$result = $prices->get($line, $failOpen);
 
-- [Prices, ingest, and write-backs](/api/overview) in the API reference
-- [Build your own connector](/sdks/build-a-connector) for a homegrown ERP or storefront
+if ($result->source() === 'elastly') {
+    $erp->updateQuoteLine($quoteLineId, [
+        'elastly_price_cents' => $result->priceCents,
+        'elastly_decision_id' => $result->pricingDecisionId,
+    ]);
+}
+```
 
-The source is on [GitHub](https://github.com/elastly/elastly-php). It is generated, so file an issue rather than a pull request against generated code.
+## Price a line, with a fallback
+
+A price call usually runs inside a rep's quote screen or a checkout render. If Elastly is slow or down,
+your system must keep working. The SDK makes that a policy you declare, not code you write:
+
+```php
+use Elastly\Model\PricesRequestLinesInner;
+use Elastly\Serving\FailOpenPolicy;
+use Elastly\Serving\FailOpenCause;
+use Elastly\Serving\FallbackPrice;
+
+$line = (new PricesRequestLinesInner())
+    ->setProductSku('VLV-200')
+    ->setCustomerExternalId('cust-1042')
+    ->setQuantity(25);
+
+$result = $prices->get($line, FailOpenPolicy::staticFallback(
+    fn (PricesRequestLinesInner $line, FailOpenCause $cause): FallbackPrice
+        => new FallbackPrice(priceCents: $erp->listPrice($line->getProductSku())),
+    deadlineMs: 800,
+));
+
+switch ($result->source()) {
+    case 'elastly':
+        render($result->priceCents, $result->reasonSummary);
+        break;
+    case 'fallback':
+        render($result->priceCents); // $result->cause->reason tells you why
+        break;
+}
+```
+
+Under this policy a timeout, a 5xx, a rate limit, a malformed body, or a network failure never throws.
+The SDK retries where it can, then calls your fallback and returns a `FallbackPriceResult` with the
+cause attached. If your fallback returns `null`, you get an `UnavailablePrice`, an explicit typed
+no-answer.
+
+Requests that mean your call is wrong (`invalid_request`, `feature_not_enabled`) always throw a typed
+error, because a bug in your integration is not an outage to paper over. For batch jobs where a wrong
+price is worse than no price, use `throwOnFailure`, which throws on everything:
+
+```php
+$results = $prices->getMany($lines, FailOpenPolicy::throwOnFailure());
+```
+
+`getMany` prices up to 100 lines in one HTTP call. One unknown SKU fails that line alone, never the
+whole batch.
+
+## Typed errors
+
+Every error is a typed exception carrying the stable error code and the request id, so support can find
+the exact call. Catch the specific class or the base:
+
+```php
+use Elastly\Errors\ApiError;
+use Elastly\Errors\RateLimitError;
+use Elastly\Errors\UnknownProductError;
+
+try {
+    $prices->get($line, FailOpenPolicy::throwOnFailure());
+} catch (RateLimitError $e) {
+    echo $e->retryAfterMs;
+} catch (UnknownProductError $e) {
+    echo $e->requestId;
+} catch (ApiError $e) {
+    echo $e->getCode() . ' ' . $e->status;
+}
+```
+
+There is one exception per API error code (`UnknownProductError`, `NoCostBasisError`,
+`MonthlyVolumeExceededError`, and the rest), all extending `ApiError`, which extends `ElastlyError`.
+Catch `ElastlyError` to handle anything, including network and timeout faults.
+
+## Verify a webhook
+
+```php
+use Elastly\Webhooks\WebhooksNamespace;
+use Elastly\Webhooks\SignatureVerificationError;
+
+$webhooks = new WebhooksNamespace();
+
+try {
+    $event = $webhooks->verify($rawBody, $signatureHeader, 'whsec_...');
+} catch (SignatureVerificationError $e) {
+    http_response_code(400);
+    return;
+}
+
+if ($event->event === 'sync.completed') {
+    // handle it
+}
+```
+
+`verify` checks the signature in constant time, rejects anything older than five minutes, and returns a
+typed event. It throws `SignatureVerificationError` on a bad signature, a replay, or a malformed body.
+The four event types are `sync.completed`, `recommendation.created`, `price.written_back`, and
+`test.ping`.
+
+## What the SDK handles for you
+
+- **Idempotency.** Every mutating call carries a key that stays stable across retries, so a retried
+  price call can never double-count against your plan.
+- **Retries.** Failed calls back off with full jitter and honor `Retry-After` and `RateLimit-Reset`.
+- **A circuit breaker.** After repeated failures it stops hammering Elastly and goes straight to your
+  fallback, then probes once to recover.
+- **Fail-open telemetry.** Every call that falls open reports itself to Elastly (fire and forget, never
+  on your latency path), so an outage that hit your quote screen shows up in your dashboard.
+
+## Laravel
+
+The package is framework-agnostic, so `composer require` is all Laravel needs. There is no service
+provider to register and nothing to publish. To resolve a configured client from the container, bind it
+once:
+
+```php
+use Elastly\Configuration;
+use Elastly\Serving\PricesNamespace;
+use Elastly\Transport\ElastlyTransport;
+
+$this->app->singleton(PricesNamespace::class, function () {
+    $config = Configuration::getDefaultConfiguration()
+        ->setAccessToken(config('services.elastly.key'));
+
+    return new PricesNamespace(new ElastlyTransport($config));
+});
+```
+
+Then type-hint `PricesNamespace` anywhere Laravel resolves dependencies.
+
+## Build a connector
+
+To push your own ERP or storefront into Elastly, the SDK ships a connector runtime: implement a few
+methods that read your data, and `ConnectorDefinition` runs the whole sync, with paging, checkpoints,
+retries, and write-back leases handled for you.
+
+<Card title="Build a connector" icon="wrench" href="/sdks/build-a-connector">
+  Feed your data in, apply approved prices back, in PHP or any other language.
+</Card>
+
+## Versioning
+
+The SDK's major version is bound to the API version in the URL. Every `0.x` and `1.x` release talks to
+`/api/v1`, so an upgrade within a major is always safe.
+
+The source is on [GitHub](https://github.com/elastly/elastly-php). It is generated, so file an issue
+rather than a pull request against generated code.

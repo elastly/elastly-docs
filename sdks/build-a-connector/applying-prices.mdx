@@ -10,6 +10,11 @@ schedule fits: claim a batch, write each price into your system, then acknowledg
 leases the tasks, so two workers never apply the same price. Set up your client first (see the
 [overview](/sdks/build-a-connector)).
 
+<Tip>
+  The [connector framework](/sdks/build-a-connector/connector-framework) drains write-backs for you,
+  with leases handled. Read this page when you want to claim and acknowledge yourself.
+</Tip>
+
 ## Claim, apply, acknowledge
 
 <CodeGroup>

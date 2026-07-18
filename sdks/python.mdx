@@ -1,11 +1,15 @@
 ---
 title: "Python SDK"
 sidebarTitle: "Python"
-description: "Call the Elastly pricing API from Python. Price lines, ingest your catalog, and claim write-backs with a fully typed client generated from the same contract our servers validate against."
+description: "Price lines with a hard deadline and a fallback, verify webhooks, and sync a connector, from Python."
 icon: "/logos/python.svg"
 ---
 
-The `elastly` package is the supported way to call Elastly from Python. It is generated from the same [OpenAPI contract](/api/overview) our own servers validate against, so the request and response types in your editor cannot drift from the API. It covers the full v1 surface: pricing, ingest, and write-backs.
+The `elastly` package is the supported way to call Elastly from Python. The request and response types
+are generated from the same [OpenAPI contract](/api/overview) our servers validate against, so they
+cannot drift from the API. On top of that it adds what every integration needs: a price call that never
+breaks your quote screen, typed errors, webhook verification, and a connector that pages, checkpoints,
+retries, and reports for you.
 
 ```bash
 pip install elastly
@@ -15,61 +19,153 @@ Python 3.9 or later.
 
 ## Keys and scopes
 
-Create API keys under [Settings → API keys](https://app.elastly.io/settings). Scopes are separate on purpose: an ERP key prices lines, a connector key ingests data and claims write-backs. A serving key can never write your catalog, and a connector key can never read prices. Pass the key as a bearer token on the `Configuration`.
+Create API keys under [Settings → API keys](https://app.elastly.io/settings). Scopes are separate on
+purpose: a serving key can never write your catalog, and a connector key can never read prices.
+
+| Scope         | Used for               | SDK surface                                              |
+| ------------- | ---------------------- | ------------------------------------------------------- |
+| **ERP**       | Price serving          | `PricesNamespace`                                       |
+| **Connector** | Ingest and write-backs | `IngestApi`, `WritebacksApi`, `define_connector`        |
 
 ```python
 import elastly
+from elastly.serving import PricesNamespace
+from elastly.transport import ElastlyTransport
 
-configuration = elastly.Configuration(access_token="elastly_live_...")
+config = elastly.Configuration(access_token="elastly_live_...")
+prices = PricesNamespace(ElastlyTransport(elastly.ApiClient(config)))
 ```
-
-## Price a line
-
-`get_prices` takes up to 100 lines in one call. Each response line is either a priced result or a typed per-line error, so one unknown SKU fails that line alone and never the whole batch.
-
-```python
-import uuid
-import elastly
-
-configuration = elastly.Configuration(access_token="elastly_live_...")
-
-with elastly.ApiClient(configuration) as api_client:
-    prices = elastly.PricesApi(api_client)
-
-    response = prices.get_prices(
-        idempotency_key=str(uuid.uuid4()),
-        prices_request=elastly.PricesRequest(
-            lines=[
-                elastly.PricesRequestLinesInner(
-                    product_sku="SKU-1042",
-                    customer_external_id="CUST-88",
-                    quantity=25,
-                )
-            ]
-        ),
-    )
-
-    for line in response.lines:
-        result = line.actual_instance
-        if result.ok:
-            print(result.price_cents, result.currency, result.reason_summary)
-        else:
-            print("failed:", result.code, result.message)
-```
-
-Every priced call needs an `Idempotency-Key`. Use a fresh key for each logical request and reuse the same key when you retry, so a retried call is served from the stored response and never prices twice.
 
 ## The one thing to get right: the decision id
 
-Every priced line comes back with a `pricing_decision_id`. Store it in your own system, on the quote line it priced. When that quote later closes and you send it back to Elastly, the id is how Elastly connects what it recommended to what your rep actually did. That difference is what the pricing model learns from.
+Every priced line comes back with a `pricing_decision_id`. **Store it in your own system, on the quote
+line it priced.** When that quote later closes and you send it back to Elastly, the id ties what Elastly
+recommended to what your rep actually charged. That difference is what the model learns from.
 
-<Info>
-  Skip this and everything still looks like it works: prices serve, quotes ingest, dashboards fill. But the model learns nothing from your quotes, and nothing will tell you. Persist the decision id first, before anything else.
-</Info>
+Skip it and everything still looks like it works: prices serve, quotes ingest, dashboards fill. But the
+model learns nothing from your quotes, and nothing tells you. So wire it first:
 
-## Next steps
+```python
+result = prices.get(line, fail_open=fail_open)
 
-- [Prices, ingest, and write-backs](/api/overview) in the API reference
-- [Build your own connector](/sdks/build-a-connector) for a homegrown ERP or storefront
+if result.source == "elastly":
+    erp.update_quote_line(
+        quote_line_id,
+        elastly_price_cents=result.price_cents,
+        elastly_decision_id=result.pricing_decision_id,
+    )
+```
 
-The source is on [GitHub](https://github.com/elastly/elastly-python). It is generated, so file an issue rather than a pull request against generated code.
+## Price a line, with a fallback
+
+A price call usually runs inside a rep's quote screen or a checkout render. If Elastly is slow or down,
+your system must keep working. The SDK makes that a policy you declare, not code you write:
+
+```python
+from elastly.serving import static_fallback, FallbackPrice
+from elastly.models.prices_request_lines_inner import PricesRequestLinesInner
+
+fail_open = static_fallback(
+    lambda line, cause: FallbackPrice(price_cents=erp.list_price(line.product_sku), currency="USD"),
+    deadline_ms=800,
+)
+
+result = prices.get(
+    PricesRequestLinesInner(product_sku="VLV-200", customer_external_id="cust-1042", quantity=25),
+    fail_open=fail_open,
+)
+
+if result.source == "elastly":
+    render(result.price_cents, result.reason_summary)
+elif result.source == "fallback":
+    render(result.price_cents)  # result.cause.reason tells you why
+```
+
+Under this policy a timeout, a 5xx, a rate limit, a malformed body, or a network failure never raises.
+The SDK retries where it can, then calls your fallback and returns a result with `source == "fallback"`
+and the cause attached. If your fallback returns `None`, you get `source == "unavailable"`, an explicit
+typed no-answer.
+
+Requests that mean your call is wrong (`invalid_request`, `feature_not_enabled`) always raise a typed
+error, because a bug in your integration is not an outage to paper over. For batch jobs where a wrong
+price is worse than no price, use `throw_on_failure`, which raises on everything:
+
+```python
+from elastly.serving import throw_on_failure
+
+results = prices.get_many(lines, fail_open=throw_on_failure())
+```
+
+`get_many` prices up to 100 lines in one HTTP call. One unknown SKU fails that line alone, never the
+whole batch.
+
+## Typed errors
+
+Every error is a typed exception carrying the stable error code and the request id, so support can find
+the exact call. Catch the specific class or the base:
+
+```python
+from elastly import errors
+
+try:
+    prices.get(line, fail_open=throw_on_failure())
+except errors.RateLimitError as e:
+    print(e.retry_after_ms)
+except errors.UnknownProductError as e:
+    print(e.request_id)
+except errors.ApiError as e:
+    print(e.code, e.status)
+```
+
+There is one exception per API error code (`UnknownProductError`, `NoCostBasisError`,
+`MonthlyVolumeExceededError`, and the rest), all subclassing `ApiError`, which subclasses
+`ElastlyError`. Catch `ElastlyError` to handle anything, including network and timeout faults.
+
+## Verify a webhook
+
+```python
+from elastly.webhooks import WebhooksNamespace, SignatureVerificationError
+
+webhooks = WebhooksNamespace()
+
+try:
+    event = webhooks.verify(raw_body, signature_header, "whsec_...")
+except SignatureVerificationError:
+    return  # reject with 400
+
+if event.event == "sync.completed":
+    print(event.data)
+```
+
+`verify` checks the signature in constant time, rejects anything older than five minutes, and returns a
+typed event. It raises `SignatureVerificationError` on a bad signature, a replay, or a malformed body.
+The four event types are `sync.completed`, `recommendation.created`, `price.written_back`, and
+`test.ping`.
+
+## What the SDK handles for you
+
+- **Idempotency.** Every mutating call carries a key that stays stable across retries, so a retried
+  price call can never double-count against your plan.
+- **Retries.** Failed calls back off with full jitter and honor `Retry-After` and `RateLimit-Reset`.
+- **A circuit breaker.** After repeated failures it stops hammering Elastly and goes straight to your
+  fallback, then probes once to recover.
+- **Fail-open telemetry.** Every call that falls open reports itself to Elastly (fire and forget, never
+  on your latency path), so an outage that hit your quote screen shows up in your dashboard.
+
+## Build a connector
+
+To push your own ERP or storefront into Elastly, the SDK ships a connector runtime: implement a few
+functions that read your data, and `define_connector` runs the whole sync, with paging, checkpoints,
+retries, and write-back leases handled for you.
+
+<Card title="Build a connector" icon="wrench" href="/sdks/build-a-connector">
+  Feed your data in, apply approved prices back, in Python or any other language.
+</Card>
+
+## Versioning
+
+The SDK's major version is bound to the API version in the URL. Every `0.x` and `1.x` release talks to
+`/api/v1`, so an upgrade within a major is always safe.
+
+The source is on [GitHub](https://github.com/elastly/elastly-python). It is generated, so file an issue
+rather than a pull request against generated code.

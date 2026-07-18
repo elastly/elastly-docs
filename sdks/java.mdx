@@ -1,91 +1,193 @@
 ---
 title: "Java SDK"
 sidebarTitle: "Java"
-description: "Call the Elastly pricing API from Java. Price lines, ingest your catalog, and claim write-backs with a typed client generated from the same contract our servers validate against."
+description: "Price lines with a hard deadline and a fallback, verify webhooks, and sync a connector, from Java."
 icon: "/logos/java.svg"
 ---
 
-The `io.elastly:elastly-sdk` artifact is the supported way to call Elastly from Java. It is generated from the same [OpenAPI contract](/api/overview) our own servers validate against, so its types cannot drift from the API. It covers the full v1 surface: pricing, ingest, and write-backs.
+The `io.elastly:elastly-sdk` artifact is the supported way to call Elastly from Java. The request and
+response types are generated from the same [OpenAPI contract](/api/overview) our servers validate
+against, so they cannot drift from the API. On top of that it adds what every integration needs: a price
+call that never breaks your quote screen, typed errors, webhook verification, and a connector that
+pages, checkpoints, retries, and reports for you.
 
 ```xml
 <dependency>
   <groupId>io.elastly</groupId>
   <artifactId>elastly-sdk</artifactId>
-  <version>0.1.1</version>
+  <version>0.2.0</version>
 </dependency>
 ```
 
 Or with Gradle:
 
 ```groovy
-implementation 'io.elastly:elastly-sdk:0.1.1'
+implementation 'io.elastly:elastly-sdk:0.2.0'
 ```
 
 Java 8 or later.
 
 ## Keys and scopes
 
-Create API keys under [Settings → API keys](https://app.elastly.io/settings). Scopes are separate on purpose: an ERP key prices lines, a connector key ingests data and claims write-backs. A serving key can never write your catalog, and a connector key can never read prices. Set the key as a bearer token on the `ApiClient`.
+Create API keys under [Settings → API keys](https://app.elastly.io/settings). Scopes are separate on
+purpose: a serving key can never write your catalog, and a connector key can never read prices.
+
+| Scope         | Used for               | SDK surface                                             |
+| ------------- | ---------------------- | ------------------------------------------------------- |
+| **ERP**       | Price serving          | `PricesNamespace`                                       |
+| **Connector** | Ingest and write-backs | `IngestApi`, `WritebacksApi`, `ConnectorDefinition`     |
 
 ```java
-ApiClient client = Configuration.getDefaultApiClient();
-client.setBearerToken("elastly_live_...");
-```
-
-## Price a line
-
-`getPrices` takes up to 100 lines in one call. Each response line is either a priced result or a typed per-line error, so one unknown SKU fails that line alone and never the whole batch.
-
-```java
-import java.math.BigDecimal;
-import java.util.Arrays;
-import java.util.UUID;
-
 import io.elastly.sdk.ApiClient;
-import io.elastly.sdk.Configuration;
-import io.elastly.sdk.api.PricesApi;
-import io.elastly.sdk.model.PricesRequest;
-import io.elastly.sdk.model.PricesRequestLinesInner;
-import io.elastly.sdk.model.PricesResponse;
-import io.elastly.sdk.model.PricesResponseLinesInner;
-import io.elastly.sdk.model.PricesResponseLinesInnerOneOf;
+import io.elastly.sdk.transport.ElastlyTransport;
+import io.elastly.sdk.serving.PricesNamespace;
 
-ApiClient client = Configuration.getDefaultApiClient();
-client.setBearerToken("elastly_live_...");
+ApiClient apiClient = new ApiClient();
+apiClient.setBearerToken("elastly_live_...");
 
-PricesApi prices = new PricesApi(client);
-
-PricesRequestLinesInner line = new PricesRequestLinesInner()
-    .productSku("SKU-1042")
-    .customerExternalId("CUST-88")
-    .quantity(new BigDecimal(25));
-
-PricesResponse response = prices.getPrices(
-    UUID.randomUUID().toString(),
-    new PricesRequest().lines(Arrays.asList(line)));
-
-for (PricesResponseLinesInner l : response.getLines()) {
-    Object result = l.getActualInstance();
-    if (result instanceof PricesResponseLinesInnerOneOf) {
-        PricesResponseLinesInnerOneOf priced = (PricesResponseLinesInnerOneOf) result;
-        System.out.println(priced.getPriceCents() + " " + priced.getCurrency() + ": " + priced.getReasonSummary());
-    }
-}
+PricesNamespace prices = new PricesNamespace(ElastlyTransport.builder(apiClient).build());
 ```
-
-Every priced call needs an `Idempotency-Key` (the first argument to `getPrices`). Use a fresh key for each logical request and reuse the same key when you retry, so a retried call is served from the stored response and never prices twice.
 
 ## The one thing to get right: the decision id
 
-Every priced line comes back with a `pricingDecisionId`. Store it in your own system, on the quote line it priced. When that quote later closes and you send it back to Elastly, the id is how Elastly connects what it recommended to what your rep actually did. That difference is what the pricing model learns from.
+Every priced line comes back with a pricing decision id. **Store it in your own system, on the quote
+line it priced.** When that quote later closes and you send it back to Elastly, the id ties what Elastly
+recommended to what your rep actually charged. That difference is what the model learns from.
 
-<Info>
-  Skip this and everything still looks like it works: prices serve, quotes ingest, dashboards fill. But the model learns nothing from your quotes, and nothing will tell you. Persist the decision id first, before anything else.
-</Info>
+Skip it and everything still looks like it works: prices serve, quotes ingest, dashboards fill. But the
+model learns nothing from your quotes, and nothing tells you. So wire it first:
 
-## Next steps
+```java
+PriceResult result = prices.get(line, failOpen);
 
-- [Prices, ingest, and write-backs](/api/overview) in the API reference
-- [Build your own connector](/sdks/build-a-connector) for a homegrown ERP or storefront
+if (result.getSource() == PriceResult.Source.ELASTLY) {
+    ElastlyPrice priced = (ElastlyPrice) result;
+    priced.getPricingDecisionId().ifPresent(id ->
+        erp.updateQuoteLine(quoteLineId, priced.getPriceCents(), id));
+}
+```
 
-The source is on [GitHub](https://github.com/elastly/elastly-java). It is generated, so file an issue rather than a pull request against generated code.
+## Price a line, with a fallback
+
+A price call usually runs inside a rep's quote screen or a checkout render. If Elastly is slow or down,
+your system must keep working. The SDK makes that a policy you declare, not code you write:
+
+```java
+import io.elastly.sdk.serving.*;
+import io.elastly.sdk.model.PricesRequestLinesInner;
+import java.math.BigDecimal;
+import java.util.Optional;
+
+PricesRequestLinesInner line = new PricesRequestLinesInner()
+    .productSku("VLV-200")
+    .customerExternalId("cust-1042")
+    .quantity(new BigDecimal(25));
+
+FailOpenPolicy failOpen = FailOpenPolicy
+    .staticFallback((l, cause) -> Optional.of(new FallbackPrice(erp.listPrice(l.getProductSku()), "USD")))
+    .withDeadlineMs(800);
+
+PriceResult result = prices.get(line, failOpen);
+
+switch (result.getSource()) {
+    case ELASTLY:
+        ElastlyPrice priced = (ElastlyPrice) result;
+        render(priced.getPriceCents(), priced.getReasonSummary());
+        break;
+    case FALLBACK:
+        render(((FallbackPriceResult) result).getPriceCents()); // getCause().getReason() tells you why
+        break;
+    case UNAVAILABLE:
+        // no price available
+        break;
+}
+```
+
+Under this policy a timeout, a 5xx, a rate limit, a malformed body, or a network failure never throws.
+The SDK retries where it can, then calls your fallback and returns a `FallbackPriceResult` with the
+cause attached. If your fallback returns `Optional.empty()`, you get an `UnavailablePrice`, an explicit
+typed no-answer.
+
+Requests that mean your call is wrong (`invalid_request`, `feature_not_enabled`) always throw a typed
+error, because a bug in your integration is not an outage to paper over. For batch jobs where a wrong
+price is worse than no price, use `throwOnFailure`, which throws on everything:
+
+```java
+List<PriceResult> results = prices.getMany(lines, FailOpenPolicy.throwOnFailure());
+```
+
+`getMany` prices up to 100 lines in one HTTP call. One unknown SKU fails that line alone, never the
+whole batch.
+
+## Typed errors
+
+Every error is a typed exception carrying the stable error code and the request id, so support can find
+the exact call. Catch the specific class or the base:
+
+```java
+import io.elastly.sdk.errors.*;
+
+try {
+    prices.get(line, FailOpenPolicy.throwOnFailure());
+} catch (RateLimitException e) {
+    e.getRetryAfterMs().ifPresent(ms -> backoff(ms));
+} catch (UnknownProductException e) {
+    System.out.println(e.getRequestId().orElse(null));
+} catch (ElastlyApiException e) {
+    System.out.println(e.getApiErrorCode() + " " + e.getStatus());
+}
+```
+
+There is one exception per API error code (`UnknownProductException`, `NoCostBasisException`,
+`MonthlyVolumeExceededException`, and the rest), all extending `ElastlyApiException`, which extends
+`ElastlyException`. Catch `ElastlyException` to handle anything, including network and timeout faults.
+
+## Verify a webhook
+
+```java
+import io.elastly.sdk.webhooks.*;
+
+try {
+    VerifiedWebhookEvent event =
+        Webhooks.verify(rawBody, request.getHeader("Elastly-Signature"), secret);
+
+    if (event.isOfType("sync.completed")) {
+        // handle it
+    }
+} catch (SignatureVerificationException e) {
+    response.setStatus(400);
+}
+```
+
+`verify` checks the signature in constant time, rejects anything older than five minutes, and returns a
+typed event. It throws `SignatureVerificationException` on a bad signature, a replay, or a malformed
+body. The four event types are `sync.completed`, `recommendation.created`, `price.written_back`, and
+`test.ping`.
+
+## What the SDK handles for you
+
+- **Idempotency.** Every mutating call carries a key that stays stable across retries, so a retried
+  price call can never double-count against your plan.
+- **Retries.** Failed calls back off with full jitter and honor `Retry-After` and `RateLimit-Reset`.
+- **A circuit breaker.** After repeated failures it stops hammering Elastly and goes straight to your
+  fallback, then probes once to recover.
+- **Fail-open telemetry.** Every call that falls open reports itself to Elastly (fire and forget, never
+  on your latency path), so an outage that hit your quote screen shows up in your dashboard.
+
+## Build a connector
+
+To push your own ERP or storefront into Elastly, the SDK ships a connector runtime: implement a few
+methods that read your data, and `ConnectorDefinition` runs the whole sync, with paging, checkpoints,
+retries, and write-back leases handled for you.
+
+<Card title="Build a connector" icon="wrench" href="/sdks/build-a-connector">
+  Feed your data in, apply approved prices back, in Java or any other language.
+</Card>
+
+## Versioning
+
+The SDK's major version is bound to the API version in the URL. Every `0.x` and `1.x` release talks to
+`/api/v1`, so an upgrade within a major is always safe.
+
+The source is on [GitHub](https://github.com/elastly/elastly-java). It is generated, so file an issue
+rather than a pull request against generated code.
