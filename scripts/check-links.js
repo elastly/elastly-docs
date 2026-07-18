@@ -26,13 +26,13 @@ pages.add("/")
 
 // Static assets that links may point at.
 const assets = new Set()
-for (const dir of ["logos", "images"]) {
+for (const dir of ["logos", "images", "art"]) {
   const d = path.join(root, dir)
   if (!fs.existsSync(d)) continue
   for (const f of fs.readdirSync(d)) assets.add(`/${dir}/${f}`)
 }
 
-const LINK = /\]\(([^)]+)\)|href="([^"]+)"|icon="(\/[^"]+)"/g
+const LINK = /\]\(([^)]+)\)|href="([^"]+)"|icon="(\/[^"]+)"|src="(\/[^"]+)"/g
 
 let broken = 0
 let checked = 0
@@ -40,7 +40,7 @@ for (const file of files) {
   const src = fs.readFileSync(file, "utf8")
   const rel = path.relative(root, file)
   for (const m of src.matchAll(LINK)) {
-    const raw = (m[1] ?? m[2] ?? m[3] ?? "").trim()
+    const raw = (m[1] ?? m[2] ?? m[3] ?? m[4] ?? "").trim()
     if (!raw) continue
     if (/^(https?:|mailto:|#)/.test(raw)) continue
     if (!raw.startsWith("/")) continue

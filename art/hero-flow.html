@@ -1,0 +1,66 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="_base.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="_measure.js"></script>
+
+<style>
+  .flow { display: flex; align-items: stretch; gap: 0; }
+  .step {
+    width: 300px; background: var(--surface); border: 1px solid var(--line);
+    border-radius: 20px; padding: 30px 28px; position: relative;
+  }
+  .num {
+    font-family: "Geist Mono", ui-monospace, monospace; font-size: 15px; font-weight: 600;
+    color: var(--brand); letter-spacing: 0.02em;
+  }
+  .ic {
+    width: 52px; height: 52px; border-radius: 14px; background: var(--brand-50);
+    display: flex; align-items: center; justify-content: center; margin: 18px 0 20px;
+  }
+  .ic svg { width: 26px; height: 26px; stroke: var(--brand); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .t { font-size: 21px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 9px; }
+  .d { font-size: 15px; line-height: 1.5; color: var(--ink-600); }
+  .arrow { display: flex; align-items: center; padding: 0 14px; }
+  .arrow svg { width: 26px; height: 26px; stroke: var(--ink-400); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .dot { position: absolute; top: 34px; right: 28px; width: 9px; height: 9px; border-radius: 50%; background: var(--gold); }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="flow">
+    <div class="step">
+      <div class="num">01</div>
+      <div class="ic"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10"/><circle cx="19" cy="17" r="2"/></svg></div>
+      <div class="t">Connect your data</div>
+      <div class="d">Your catalog, cost, customers, and real sales sync from the system you already run on.</div>
+    </div>
+    <div class="arrow"><svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+    <div class="step">
+      <div class="num">02</div>
+      <div class="ic"><svg viewBox="0 0 24 24"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M6 6l2 2M16 16l2 2M18 6l-2 2M8 16l-2 2"/><circle cx="12" cy="12" r="3.5"/></svg></div>
+      <div class="t">Elastly builds a price</div>
+      <div class="d">A base margin plus visible adjustments, then it learns from what actually sold.</div>
+    </div>
+    <div class="arrow"><svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+    <div class="step">
+      <div class="num">03</div>
+      <div class="ic"><svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg></div>
+      <div class="t">You review</div>
+      <div class="d">Every recommendation shows its reasons and the guardrail that shaped it. You approve.</div>
+    </div>
+    <div class="arrow"><svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+    <div class="step">
+      <div class="dot"></div>
+      <div class="num">04</div>
+      <div class="ic"><svg viewBox="0 0 24 24"><path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z"/></svg></div>
+      <div class="t">Prices apply</div>
+      <div class="d">Approved prices write back to your store or ERP, and realized margin is tracked over time.</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

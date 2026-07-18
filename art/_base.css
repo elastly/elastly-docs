@@ -1,0 +1,21 @@
+:root {
+  --brand: #0e8c6b;
+  --brand-50: #ecf6f1;
+  --brand-100: #cfeadf;
+  --gold: #f0a92b;
+  --ink: #0f1a15;
+  --ink-600: #55555e;
+  --ink-400: #8a8a92;
+  --canvas: #f2f4f2;
+  --surface: #ffffff;
+  --line: #e6e6ea;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  font-family: "Geist", -apple-system, "Segoe UI", system-ui, sans-serif;
+  color: var(--ink);
+  background: transparent;
+  -webkit-font-smoothing: antialiased;
+}
+.stage { display: inline-block; padding: 48px; background: var(--canvas); }
+.mono { font-family: "Geist Mono", ui-monospace, monospace; }

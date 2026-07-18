@@ -5,3 +5,9 @@
 # Draft content
 drafts/
 *.draft.mdx
+
+# Diagram sources (only the rendered PNGs are served)
+art/*.html
+art/*.css
+art/*.js
+art/*.sh
