@@ -201,6 +201,18 @@
     {
       "source": "/sdks/build-a-connector/typescript-framework",
       "destination": "/sdks/build-a-connector/connector-framework"
+    },
+    {
+      "source": "/api",
+      "destination": "/api/overview"
+    },
+    {
+      "source": "/ingest",
+      "destination": "/api/ingest"
+    },
+    {
+      "source": "/writebacks",
+      "destination": "/api/writebacks"
     }
   ]
 }
