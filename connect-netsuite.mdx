@@ -204,15 +204,22 @@ automatically, so the scheduled sync keeps running unattended.
 ## See Elastly's price live inside NetSuite
 
 Everything above sets up the read-only sync that feeds Elastly. The integration can also run the other
-way: a small **Client Script** inside NetSuite asks Elastly for the recommended price the moment a line
-is added to an Estimate or Sales Order, and shows it on the line as an advisory column (the **Elastly
-Rate** and its reason) right next to the native rate. Your reps keep working entirely in NetSuite and
-see Elastly's number against their own. Elastly never overwrites the rate. The rep decides. This is
-optional, and it reuses everything the sync already taught Elastly: a line seen live in NetSuite
-carries the same explainable price the Elastly dashboard would show.
+way: a small script inside NetSuite asks Elastly for the recommended price the moment a line is added
+to an Estimate, and shows it on the line as an advisory column (the **Elastly Rate** and its reason)
+right next to the native rate. Your reps keep working entirely in NetSuite and see Elastly's number
+against their own. Elastly never overwrites the rate. The rep decides. This is optional, and it reuses
+everything the sync already taught Elastly: a line seen live in NetSuite carries the same explainable
+price the Elastly dashboard would show.
 
 Set it up once the first sync has finished. It fails open by design: if Elastly is ever slow or
 unreachable, the advisory columns simply stay empty and quoting is never blocked.
+
+Two scripts do the work. A **Suitelet** runs on the NetSuite server and holds the only connection to
+Elastly. A **Client Script** runs in the rep's browser and only ever talks to that Suitelet. Your
+Elastly API key lives in a NetSuite **API Secret** that only the Suitelet can read, so it never reaches
+a browser. The Suitelet runs as the logged-in user, so it looks up the customer under that user's own
+role, and it tells Elastly which NetSuite employee and role asked. That is what lets Elastly scope a
+rep to the customers they own.
 
 <Warning>
   **A note on "Estimate."** Some accounts rename the Estimate record type (commonly to "Quote" or
@@ -223,22 +230,56 @@ unreachable, the advisory columns simply stay empty and quoting is never blocked
   `.../transactions/estimate.nl?...` regardless of the display label.
 </Warning>
 
-### Create an Elastly API key
+### Before you start
 
-The script authenticates to Elastly with a secret API key. In Elastly, go to [Settings → API keys](https://app.elastly.io/settings)
-and press **Create API key**, give it a recognizable name (for example `NetSuite production`), and
-**copy the key when it's shown**, since it appears only once.
+You need a NetSuite **administrator**, or a custom role with these permissions:
+
+| Permission                                   | Level | Needed for                                   |
+| -------------------------------------------- | ----- | -------------------------------------------- |
+| Setup → SuiteScript                          | Full  | Uploading the scripts and creating deployments |
+| Setup → Secrets Management                   | Full  | Creating the API Secret                      |
+| Setup → SuiteCloud Development Framework     | Full  | Only if you deploy the bundle with the SuiteCloud CLI instead of the steps below |
+
+Reps need nothing new. The Suitelet runs under their own role, so a rep who can open an Estimate and
+see its customer gets a price. A rep whose role cannot see the customer gets no price on that record.
+
+Download **elastly-netsuite.zip** from **Integrations → NetSuite** in Elastly. Unzip it. The folder
+`src/FileCabinet/SuiteScripts/elastly/` holds the two files you upload:
+
+| File                 | Script type   | What it does                                            |
+| -------------------- | ------------- | ------------------------------------------------------- |
+| `elastly_price_sl.js` | Suitelet      | Calls Elastly with the key from the API Secret          |
+| `elastly_price_cs.js` | Client Script | Prices the line the rep is editing by calling the Suitelet |
+
+The same folder also holds `elastly_price_ue.js` and `elastly_apply_cs.js`. They belong to the Apply
+feature, which Elastly turns on per workspace. Leave them out of this install.
+
+<Note>
+  The zip is a complete SuiteCloud (SDF) account customization project. If your team deploys with the
+  SuiteCloud CLI, `suitecloud project:deploy` creates the line fields, both scripts, their deployments
+  and the empty API Secret in one go. You still set the secret's value and its script restriction by
+  hand, and you check the Suitelet deployment's **Execute As Role** after the deploy.
+</Note>
+
+### Create a Sales rep API key in Elastly
+
+In Elastly, go to [Settings → API keys](https://app.elastly.io/settings) and press **Create key**.
+Choose the **ERP** scope, then the **Sales rep** view. Pick an expiry, name the key (for example
+`NetSuite production`), and press **Create key**. **Copy it now.** The full key is shown once.
+
+The Sales rep view returns the price without margins or minimums. That is all the NetSuite scripts
+need, and it keeps cost and margin out of NetSuite entirely.
 
 <Warning>
-  **Treat it like a password.** It's shown a single time. If you lose it, revoke it and create a new
-  one. Use **separate keys for sandbox and production** so you can rotate one without touching the
-  other.
+  **Treat it like a password.** If you lose it, revoke it and create a new one. Use **separate keys for
+  sandbox and production** so you can rotate one without touching the other. The key goes into a
+  NetSuite API Secret in a later step. It never goes into a script parameter.
 </Warning>
 
 ### Add the Elastly line fields
 
-Elastly shows its recommendation on the line through four **custom line fields**. Create **all four**
-now, before the script, so it has somewhere to write. NetSuite has no way to import a custom field
+Elastly shows its recommendation on the line through five **custom line fields**. Create **all five**
+now, before the scripts, so they have somewhere to write. NetSuite has no way to import a custom field
 from a file through the UI, so you create them yourself.
 
 <Steps>
@@ -257,85 +298,130 @@ from a file through the UI, so you create them yourself.
     On the **Applies To** subtab check **Sale** (may show as "Sale Item"), and check **Store Value**.
   </Step>
   <Step title="Set the display type">
-    Make **Elastly Rate**, **Elastly Rate Reason**, and **Elastly Decision Id** display-only, since
-    they're Elastly's to write. Leave **Elastly Sales Feedback** editable, so the rep can note why they
-    kept, raised, or lowered the price versus Elastly's rate. Elastly reads that note back to learn.
+    Make **Elastly Rate**, **Elastly Reason**, **Elastly Decision ID**, and **Elastly Status**
+    display-only, since they're Elastly's to write. Leave **Elastly Sales Feedback** editable, so the
+    rep can note why they kept, raised, or lowered the price versus Elastly's rate. Elastly reads that
+    note back to learn.
   </Step>
-  <Step title="Save, then repeat for all four">
-    **Save**, then repeat for all four fields.
+  <Step title="Save, then repeat for all five">
+    **Save**, then repeat for all five fields.
   </Step>
 </Steps>
 
-| Type this as the ID       | Type       | Field                                                                   |
-| ------------------------- | ---------- | ----------------------------------------------------------------------- |
-| `_elastly_rate`           | Currency   | **Elastly Rate.** Elastly writes the recommended price here. Display-only. |
-| `_elastly_reason`         | Text Area  | **Elastly Rate Reason.** The short explanation behind the price. Display-only. |
-| `_elastly_sales_feedback` | Text Area  | **Elastly Sales Feedback.** The rep's note versus Elastly's rate, read back to learn. Editable. |
-| `_elastly_decision_id`    | Text       | **Elastly Decision Id.** Ties the quote line back to what Elastly recommended. Display-only. |
+| Type this as the ID       | Type      | Field                                                                                           |
+| ------------------------- | --------- | ----------------------------------------------------------------------------------------------- |
+| `_elastly_rate`           | Currency  | **Elastly Rate.** Elastly writes the recommended price here. Display-only.                      |
+| `_elastly_reason`         | Text Area | **Elastly Reason.** The short explanation behind the price. Display-only.                       |
+| `_elastly_sales_feedback` | Text Area | **Elastly Sales Feedback.** The rep's note versus Elastly's rate, read back to learn. Editable. |
+| `_elastly_decision_id`    | Text      | **Elastly Decision ID.** Ties the quote line back to what Elastly recommended. Display-only.    |
+| `_elastly_floor_status`   | Text      | **Elastly Status.** Flags a line below a customer minimum or under a pricing agreement. Display-only. |
 
-If a column doesn't show on the Estimate/Sales Order form after you create it, add it to the line-item
-grid from the form's Screen Fields customization.
+If a column doesn't show on the Estimate form after you create it, add it to the line-item grid from
+the form's Screen Fields customization.
 
-### Upload the script
+### Upload the Suitelet
 
-Go to **Customization → Scripting → Scripts → New** and upload the `elastly_estimate_pricing_cs.js`
-file Elastly provides.
+Go to **Customization → Scripting → Scripts → New** and upload `elastly_price_sl.js`. NetSuite reads
+the script type and the `onRequest` entry point from the file. On the **script record**, set:
 
-On the **script record** itself (not the deployment yet), confirm these fields. Get this wrong and the
-script installs cleanly but silently never runs, with nothing in any log to explain why:
+| Field    | Value                                                          |
+| -------- | -------------------------------------------------------------- |
+| **Name** | `Elastly Price Proxy`                                          |
+| **ID**   | `_elastly_price_sl` (saves as `customscript_elastly_price_sl`) |
+| **Type** | `Suitelet`                                                     |
 
-| Field                      | Required value                          |
-| -------------------------- | --------------------------------------- |
-| **Type**                   | `Client Script`                         |
-| **Field Changed Function** | Checked (must resolve to `fieldChanged`) |
-| **Post Sourcing Function** | Checked (must resolve to `postSourcing`) |
+Then open the **Parameters** subtab and add one parameter:
 
-Leave every other entry-point checkbox (Page Init, Save Record, Line Init, and so on) unchecked, since
-the script doesn't implement them and checking them does nothing.
-
-### Add the two script parameters
-
-Still on the script record, add two parameters. NetSuite prepends `custscript` to the ID (no
-underscore of its own), so **type the leading underscore yourself**, exactly as you did for the line
-fields:
-
-| Label            | Type this as the ID  | NetSuite saves it as          |
-| ---------------- | -------------------- | ----------------------------- |
-| Elastly base URL | `_elastly_base_url`  | `custscript_elastly_base_url` |
-| Elastly API key  | `_elastly_api_key`   | `custscript_elastly_api_key`  |
+| Label            | Type | Type this as the ID | NetSuite saves it as          |
+| ---------------- | ---- | ------------------- | ----------------------------- |
+| Elastly base URL | Text | `_elastly_base_url` | `custscript_elastly_base_url` |
 
 <Warning>
-  **The ID field is where this setup goes wrong most.** Drop the leading underscore and you get
-  `custscriptelastly_base_url`; type the whole prefix yourself and you get a doubled
-  `custscriptcustscript_elastly_base_url`. Either way the script can't read it, and nothing warns you.
+  **The IDs must match exactly.** The Client Script finds the Suitelet by the IDs
+  `customscript_elastly_price_sl` and `customdeploy_elastly_price_sl`, and the Suitelet reads its base
+  URL from `custscript_elastly_base_url`. NetSuite prepends `customscript`, `customdeploy`, and
+  `custscript` for you, so type the leading underscore yourself and nothing else. Drop it and you get
+  `customscriptelastly_price_sl`; type the whole prefix and you get a doubled
+  `customscriptcustomscript_elastly_price_sl`. Either way nothing runs, and nothing warns you.
 </Warning>
 
-<Accordion title="Why a wrong ID is so hard to spot" icon="magnifying-glass">
-  The deployment shows **Released**, the audience is correct, and yet there is zero Execution Log
-  activity and zero calls ever reach Elastly. The script's first lines check for these parameters and
-  exit immediately, silently, before logging anything, if either comes back empty. If a fresh install
-  produces no activity anywhere, check the parameter IDs first.
-</Accordion>
+### Upload the Client Script
 
-Parameter _definitions_ (the two rows above) live on the script record. Parameter _values_ (the actual
-URL and key) are set separately, per **deployment**, in the next step.
+Back in **Customization → Scripting → Scripts → New**, upload `elastly_price_cs.js`. On the script
+record, set:
 
-### Deploy on Estimate and Sales Order
+| Field                      | Value                                       |
+| -------------------------- | ------------------------------------------- |
+| **Name**                   | `Elastly Pricing`                           |
+| **ID**                     | `_elastly_price_cs` (saves as `customscript_elastly_price_cs`) |
+| **Type**                   | `Client Script`                             |
+| **Page Init Function**     | Checked (must resolve to `pageInit`)        |
+| **Post Sourcing Function** | Checked (must resolve to `postSourcing`)    |
+| **Field Changed Function** | Checked (must resolve to `fieldChanged`)    |
 
-Add a **Script Deployment** for each of Estimate and Sales Order (two separate deployment records). On
-each one:
+Leave every other entry-point checkbox unchecked. The Client Script has **no parameters**. If you see
+a parameter asking for an API key, you're looking at the older script; see
+[Upgrading from the older script](#upgrading-from-the-older-script).
 
-- **Status**: `Released` (not "Testing" or "Not Yet Started", since either of those means it only runs
-  for specifically selected test users, not your team)
-- **Audience**: include every role and employee who quotes. Released status alone does not make it run
-  for someone outside the Audience list
-- **Parameters**: fill in both values here. The base URL is `https://app.elastly.io` and the API key
-  is the one you copied earlier. Both fields need real values on **each** deployment record, and they
-  don't carry over from one deployment to the other.
+### Create the API Secret
 
-<Frame caption="A deployment per record type. Status Released, with the base URL and API key parameters set.">
-  <img src="/art/ns-script-deployment.png" alt="NetSuite script deployment on Estimate, status Released, with custscript_elastly_base_url and custscript_elastly_api_key parameters filled in." />
-</Frame>
+Go to **Setup → Company → Preferences → API Secrets** and press **Create New**.
+
+| Field                      | Value                                                             |
+| -------------------------- | ----------------------------------------------------------------- |
+| **Name**                   | `Elastly API key`                                                 |
+| **ID**                     | `_elastly_api_key` (saves as `custsecret_elastly_api_key`)        |
+| **Password**               | The Elastly key you copied                                        |
+| **Confirm Password**       | The same key                                                      |
+| **Allow For All Scripts**  | Unchecked                                                         |
+| **Restrict to Scripts**    | `customscript_elastly_price_sl` (the Suitelet you just created)   |
+| **Allow For All Domains**  | Unchecked                                                         |
+| **Restrict to Domains**    | `app.elastly.io`                                                  |
+
+Save. The ID prefix works like the others: NetSuite adds `custsecret`, so type the leading underscore
+yourself. The Suitelet reads the secret as `custsecret_elastly_api_key` and nothing else can.
+
+<Note>
+  NetSuite can take up to an hour to make a new or changed secret value available to scripts. If a
+  fresh install returns `401` in the Suitelet's log right after you save the secret, wait and test
+  again before you change anything.
+</Note>
+
+### Deploy the Suitelet
+
+Open the **Elastly Price Proxy** script record, go to **Deployments**, and add one:
+
+| Field                        | Value                                                |
+| ---------------------------- | ---------------------------------------------------- |
+| **Title**                    | `Elastly Price Proxy`                                |
+| **ID**                       | `_elastly_price_sl` (saves as `customdeploy_elastly_price_sl`) |
+| **Status**                   | `Released`                                           |
+| **Deployed**                 | Checked                                              |
+| **Available Without Login**  | Unchecked                                            |
+| **Execute As Role**          | `Current User`                                       |
+| **Audience**                 | Every role that quotes (or **All Roles**)            |
+| **Log Level**                | `Error`                                              |
+| **Elastly base URL** (Parameters subtab) | `https://app.elastly.io`, no trailing slash |
+
+**Available Without Login** must stay unchecked. The Suitelet only answers NetSuite users who are
+signed in, and that is the whole point of the design. **Execute As Role** must be **Current User** so
+the customer lookup, and the employee and role Elastly receives, are the rep's own.
+
+### Deploy the Client Script
+
+Open the **Elastly Pricing** script record, go to **Deployments**, and add one on **Estimate**:
+
+| Field             | Value                                                |
+| ----------------- | ---------------------------------------------------- |
+| **Applies To**    | `Estimate` (or your account's renamed label)         |
+| **ID**            | `_elastly_price_cs` (saves as `customdeploy_elastly_price_cs`) |
+| **Status**        | `Released` (not "Testing" or "Not Yet Started", since either of those means it only runs for specifically selected test users, not your team) |
+| **Deployed**      | Checked                                              |
+| **Audience**      | Every role and employee who quotes. Released status alone does not make it run for someone outside the Audience list |
+| **Log Level**     | `Error`                                              |
+
+The bundle ships the Estimate deployment. If your reps also price from **Sales Order**, add a second
+deployment on that record type the same way, with its own ID.
 
 <Note>
   **Deploy order.** Because Elastly only fills its advisory columns and never touches the line rate, it
@@ -347,40 +433,85 @@ each one:
 ### Test it
 
 Open a new Estimate (or your account's renamed equivalent), choose a customer, and add an item: the
-**Elastly Rate** column should populate with Elastly's recommendation within a moment. The native
-**rate** stays exactly as NetSuite set it. Elastly only advises.
+**Elastly Rate** column should populate with Elastly's recommendation within a moment. Change the
+quantity and it updates. Open an existing Estimate in edit mode and every line gets priced on load.
+The native **rate** stays exactly as NetSuite set it. Elastly only advises.
+
+Back in Elastly, the key's row under **Settings → API keys** now shows a **used** date.
 
 <Accordion title="If the Elastly Rate doesn't appear, work through this in order" icon="stethoscope">
   Each step rules out a specific, real failure mode, not a guess.
 
-  1. **Open the browser console (F12) before you test.** This is a _Client_ Script, so it runs in the
-     browser. A load-time error (bad upload, corrupted file) shows up here and nowhere else. Nothing
-     here means the script loaded fine and the problem is further down.
-  2. **Check the Script Deployment's Execution Log.** An empty log plus a price never appearing means
-     the script's early checks are failing silently, most often the parameter IDs (see the warning
-     above) or parameter values left blank on _this specific_ deployment.
-  3. **Confirm the parameter IDs are exact:** `custscript_elastly_base_url` and
-     `custscript_elastly_api_key` on the script record (not doubled), each with a real _value_ on the
-     deployment you're testing.
-  4. **Confirm the deployment Audience includes your test user's role.** Released status doesn't matter
-     if the tester isn't in the Audience list.
-  5. **Confirm Field Changed Function and Post Sourcing Function are checked** on the script record,
+  1. **Open the browser console (F12) before you test.** The Client Script runs in the browser. A
+     load-time error (bad upload, corrupted file) shows up here and nowhere else. An entry titled
+     **Elastly request failed** means the browser could not reach the Suitelet: the Suitelet's script
+     or deployment ID is not exactly `customscript_elastly_price_sl` / `customdeploy_elastly_price_sl`,
+     its deployment is not Released, or the tester's role is outside its Audience.
+  2. **Check the Suitelet deployment's Execution Log.** This is where the server side reports.
+     **Elastly request failed** here means the call to Elastly itself failed: the secret is not
+     readable by this script (check **Restrict to Scripts**), the domain restriction does not include
+     `app.elastly.io`, or the key is revoked or expired (Elastly answers `401`).
+  3. **Confirm the Suitelet's base URL.** `custscript_elastly_base_url` must have a value on the
+     deployment, starting with `https://` and with no trailing slash. Without it the Suitelet answers
+     `not_configured` and writes nothing.
+  4. **Confirm the API Secret ID** is exactly `custsecret_elastly_api_key`, not doubled and not
+     missing its underscore, and that it has a value.
+  5. **Confirm both deployments' Audience includes your test user's role.** Released status doesn't
+     matter if the tester isn't in the Audience list.
+  6. **Confirm the Suitelet deployment runs as Current User** with **Available Without Login**
+     unchecked. A Suitelet set to run as a fixed role prices under that role's view of customers, not
+     the rep's.
+  7. **Confirm Page Init, Post Sourcing, and Field Changed are checked** on the Client Script record,
      matching the table above.
-  6. **Isolate Elastly's script from client scripts in general.** Does any _other_ client script you
+  8. **Check the record itself.** The Client Script only asks for a price once the Estimate has a
+     customer, a currency, and an item with a positive quantity. A customer the tester's role cannot
+     see returns `customer_not_visible` in the Suitelet log and no price. A currency whose ISO code
+     Elastly does not have returns `currency_unavailable`.
+  9. **Isolate Elastly's script from client scripts in general.** Does any _other_ client script you
      run still work on this record? If yes, the problem is scoped to Elastly's script. If nothing runs
      at all, something account- or role-wide is blocking client scripts, a bigger issue than this
      integration.
-  7. **Check the base URL and key.** The base URL should have no trailing slash, and the API key should
-     not be revoked (a revoked key returns 401, visible in the Execution Log as an error, not silence).
 </Accordion>
+
+### Upgrading from the older script
+
+Earlier installs used a single Client Script, `elastly_estimate_pricing_cs.js`, with the Elastly key
+in a script parameter named `custscript_elastly_api_key`. That put the key in every rep's browser.
+Elastly now marks such keys **Exposed** under **Settings → API keys** and expires them 30 days after
+the flag is set, so move before then.
+
+<Steps>
+  <Step title="Install the new scripts">
+    Follow the steps above from [Create a Sales rep API key](#create-a-sales-rep-api-key-in-elastly)
+    through [Deploy the Client Script](#deploy-the-client-script). Add the one new line field,
+    **Elastly Status** (`_elastly_floor_status`); the other four already exist. Create the new key
+    rather than reusing the old one: the old key is a Full-view key, and the Suitelet should carry a
+    Sales rep key.
+  </Step>
+  <Step title="Test the new install">
+    Run the [test](#test-it) with the new deployment. Both scripts can be Released at the same time
+    while you check; they write the same columns.
+  </Step>
+  <Step title="Retire the old script">
+    On each deployment of the old script, clear the value of **Elastly API key**
+    (`custscript_elastly_api_key`) and uncheck **Deployed**. Then delete the old script record, which
+    removes its parameters and deployments.
+  </Step>
+  <Step title="Revoke the old key in Elastly">
+    Under **Settings → API keys**, press **Revoke** on the key marked **Exposed**. Don't use
+    **Rotate** for this one: rotation mints a replacement with the same Full view, and the Suitelet
+    already has its Sales rep key.
+  </Step>
+</Steps>
 
 <Note>
   **Two-way: write-back.** Real-time pricing and price write-back are two separate mechanisms, and it's
-  worth being precise since they need different permissions. The **Client Script** above fills the
-  advisory columns in the form your rep already has open, under their own NetSuite session; it never
-  uses Elastly's integration role or REST API to write, only to read the price, so it needs no Edit
-  permission of its own. **Price write-back** (Elastly batch-publishing approved recommendations onto
-  existing Estimates from the dashboard) is the separate mechanism that needs **Edit** on Estimate (the
-  optional permission noted in the role step above) to fill the **Elastly Rate** column. It still never
-  overwrites the native rate, and only ever touches Estimates, not Sales Orders.
+  worth being precise since they need different permissions. The **Suitelet and Client Script** above
+  fill the advisory columns in the form your rep already has open, under the rep's own NetSuite
+  session; they never use Elastly's integration role or REST API to write, only to read the price, so
+  they need no Edit permission of their own. **Price write-back** (Elastly batch-publishing approved
+  recommendations onto existing Estimates from the dashboard) is the separate mechanism that needs
+  **Edit** on Estimate (the optional permission noted in the role step above) to fill the **Elastly
+  Rate** column. It still never overwrites the native rate, and only ever touches Estimates, not Sales
+  Orders.
 </Note>
