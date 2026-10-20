@@ -96,6 +96,15 @@ to them.
     | Price Levels    | Elastly reads the customer's price level to assign their segment.     |
     | Employees       | Optional. Lets Elastly show each sales rep only the customers they own. |
     | Employee Record | Optional. Add it with Employees, or Elastly can't read the reps.      |
+    | Currency        | Your currencies and exchange rates. Every sync and quote push reads them. |
+    | Units           | Units of measure on quote and order lines. May show as "Units of Measure". |
+    | Deleted Records | So records deleted in NetSuite are removed in Elastly.                |
+  </Step>
+  <Step title="Add your custom records">
+    On the **Permissions → Custom Record** sub-tab, add **View** on every custom record you map in
+    Elastly, for example the record that holds your substitute items, or a contract or agreement
+    record. NetSuite gives each custom record type its own permission, so none of the lists above
+    cover them. If you don't map any custom records, skip this step.
   </Step>
   <Step title="Add the Transactions permissions">
     On the **Permissions → Transactions** sub-tab, add:
@@ -295,8 +304,10 @@ need, and it keeps cost and margin out of NetSuite entirely.
 
 ### Add the Elastly line fields
 
-Elastly shows its recommendation on the line through five **custom line fields**. Create **all five**
-now, before the scripts, so they have somewhere to write. NetSuite has no way to import a custom field
+Elastly shows its recommendation on the line through five **custom line fields**. You only need them
+if you want Elastly's price, reason, and status visible on NetSuite quote lines. Quotes you build in
+Elastly and push to NetSuite work without them: Elastly fills in only the fields your account has. If
+you want them, create **all five** now, before the scripts, so they have somewhere to write. NetSuite has no way to import a custom field
 from a file through the UI, so you create them yourself.
 
 <Steps>
