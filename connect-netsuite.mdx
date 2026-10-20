@@ -77,8 +77,9 @@ to them.
     | --------------------------------------- | ----------------------------------------------------------------------------- |
     | Log in using OAuth 2.0 Access Tokens    | Only appears once OAuth 2.0 is enabled above. Not the OAuth 1.0 entry "Log in using Access Tokens". |
     | REST Web Services                       | Lets Elastly call NetSuite's REST API.                                         |
+    | Deleted Records                         | So records deleted in NetSuite are removed in Elastly.                         |
 
-    Set both to **Full**.
+    Set the two login permissions to **Full** and Deleted Records to **View**.
   </Step>
   <Step title="Add the Reports permission">
     On the **Permissions → Reports** sub-tab, add **SuiteAnalytics Workbook** at **Edit**.
@@ -98,13 +99,19 @@ to them.
     | Employee Record | Optional. Add it with Employees, or Elastly can't read the reps.      |
     | Currency        | Your currencies and exchange rates. Every sync and quote push reads them. |
     | Units           | Units of measure on quote and order lines. May show as "Units of Measure". |
-    | Deleted Records | So records deleted in NetSuite are removed in Elastly.                |
   </Step>
   <Step title="Add your custom records">
-    On the **Permissions → Custom Record** sub-tab, add **View** on every custom record you map in
-    Elastly, for example the record that holds your substitute items, or a contract or agreement
-    record. NetSuite gives each custom record type its own permission, so none of the lists above
-    cover them. If you don't map any custom records, skip this step.
+    Every custom record you map in Elastly needs its own **View** permission, for example the record
+    that holds your substitute items, or a contract or agreement record. None of the lists above cover
+    them. Where you grant it depends on the record:
+
+    - Most custom records are set to **Use Permission List** and don't appear on the role at all. Go
+      to **Customization → Lists, Records, & Fields → Record Types**, open the record, and on its
+      **Permissions** sub-tab add the `Elastly Integration` role at **View**.
+    - If the record does appear on the role's **Permissions → Custom Record** sub-tab, add it there at
+      **View** instead.
+
+    If you don't map any custom records, skip this step.
   </Step>
   <Step title="Add the Transactions permissions">
     On the **Permissions → Transactions** sub-tab, add:
