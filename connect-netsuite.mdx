@@ -76,17 +76,26 @@ to them.
     | Permission                              | What it's for                                                                 |
     | --------------------------------------- | ----------------------------------------------------------------------------- |
     | Log in using OAuth 2.0 Access Tokens    | Only appears once OAuth 2.0 is enabled above. Not the OAuth 1.0 entry "Log in using Access Tokens". |
-    | REST Web Services                       | Without it, token requests succeed but every data call is rejected.           |
-    | SuiteAnalytics Workbook                 | Required for SuiteQL queries.                                                  |
+    | REST Web Services                       | Lets Elastly call NetSuite's REST API.                                         |
+
+    Set both to **Full**.
+  </Step>
+  <Step title="Add the Reports permission">
+    On the **Permissions → Reports** sub-tab, add **SuiteAnalytics Workbook** at **Edit**.
+
+    Elastly reads your data with SuiteQL, NetSuite's query language, and NetSuite only runs SuiteQL
+    for roles that have this permission. It lives on the Reports sub-tab, not Setup.
   </Step>
   <Step title="Add the Lists permissions">
     On the **Permissions → Lists** sub-tab, add **View** on:
 
-    | Permission    | What it's for                                                    |
-    | ------------- | ---------------------------------------------------------------- |
-    | Items         | Your catalog, costs, and inventory.                              |
-    | Customers     | Who's buying. This drives per-customer and per-segment pricing.  |
-    | Price Levels  | Elastly reads the customer's price level to assign their segment. |
+    | Permission      | What it's for                                                         |
+    | --------------- | --------------------------------------------------------------------- |
+    | Items           | Your catalog, costs, and inventory.                                   |
+    | Customers       | Who's buying. This drives per-customer and per-segment pricing.       |
+    | Price Levels    | Elastly reads the customer's price level to assign their segment.     |
+    | Employees       | Optional. Lets Elastly show each sales rep only the customers they own. |
+    | Employee Record | Optional. Add it with Employees, or Elastly can't read the reps.      |
   </Step>
   <Step title="Add the Transactions permissions">
     On the **Permissions → Transactions** sub-tab, add:
@@ -99,7 +108,8 @@ to them.
   </Step>
   <Step title="Save and assign the role to a user">
     **Save**, then give a user this role. Open the user under **Setup → Users/Roles → Manage Users**,
-    edit their employee record, and on the **Access** subtab check **Give Access** and add the
+    edit their employee record, and on the **Access** subtab check **Login Access** (called **Give
+    Access** on older accounts) and add the
     `Elastly Integration` role. Elastly signs in as this user, so if the role isn't attached here the
     token request fails. You'll select this same user and role in the certificate step below.
   </Step>
@@ -111,6 +121,13 @@ to them.
   permission-sensitive: if the role can't read Sales Orders, the orders sync fails with an opaque
   server error (NetSuite reports a missing permission as if the table doesn't exist), not a clear
   "access denied". If orders aren't syncing, check this permission first.
+</Warning>
+
+<Warning>
+  **Test with this role, not Administrator.** Administrator has every permission built in, so a
+  connection that works as Administrator proves nothing about this role. If the permission check in
+  Elastly fails on Items, Customers, and every transaction at once with "Your current role does not
+  have permission to perform this action", the role is missing **SuiteAnalytics Workbook**.
 </Warning>
 
 <AccordionGroup>
