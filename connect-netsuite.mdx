@@ -121,6 +121,13 @@ to them.
     | Find Transaction  | View           | Required to retrieve any transaction over REST/SuiteQL.   |
     | Estimate (quotes) | View           | Your quotes. Grant Edit instead if you want price write-back. |
     | Sales Order       | View, required | Elastly learns from realized sales, not just quotes. See the warning below. |
+    | Invoice           | View           | What you billed against each order, so results count billed sales. |
+    | Credit Memo       | View           | Credits against invoices, so refunded lines don't count as sold. |
+    | Return Authorization | View        | Returns, so returned goods don't count as sold. |
+    | Opportunity       | View           | Enquiries that never became a quote. Elastly reads them as demand. |
+
+    Grant all of these even if you don't use some of them yet. A transaction type the role can't see
+    reads as empty, with no error, so a missing one looks exactly like having no data.
   </Step>
   <Step title="Save and assign the role to a user">
     **Save**, then give a user this role. Open the user under **Setup → Users/Roles → Manage Users**,
