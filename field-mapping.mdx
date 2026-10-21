@@ -138,16 +138,16 @@ guesses.
 
 <Tabs>
   <Tab title="NetSuite">
-    | Canonical      | Comes from                                                       |
-    | -------------- | ---------------------------------------------------------------- |
-    | `sku`          | `item.itemid`                                                    |
-    | `name`         | `item.displayname`                                               |
-    | `costCents`    | average cost, joined from `inventoryItemLocations`               |
-    | `stockQty`     | joined from `inventoryItemLocations`                             |
-    | `stockOnOrder` | joined from `inventoryItemLocations`                             |
-    | `externalId`   | `customer.entityid`                                              |
-    | `segment`      | `customer.pricelevel`                                            |
-    | `country`      | joined from the customer's default billing address               |
+    | Canonical      | Comes from                                                         |
+    | -------------- | ------------------------------------------------------------------ |
+    | `sku`          | `item.itemid`                                                      |
+    | `name`         | `item.displayname`                                                 |
+    | `costCents`    | average cost, joined from `inventoryItemLocations`                 |
+    | `stockQty`     | joined from `inventoryItemLocations`                               |
+    | `stockOnOrder` | joined from `inventoryItemLocations`                               |
+    | `externalId`   | `customer.entityid`                                                |
+    | `segment`      | `customer.pricelevel`                                              |
+    | `country`      | `customer.billcountry`, the country of the default billing address |
 
     **Category and brand have no default.** NetSuite accounts keep them in different places, often a
     custom field, so Elastly asks instead of guessing wrong.
