@@ -127,7 +127,8 @@ to them.
     | Opportunity       | View           | Enquiries that never became a quote. Elastly reads them as demand. |
 
     Grant all of these even if you don't use some of them yet. A transaction type the role can't see
-    reads as empty, with no error, so a missing one looks exactly like having no data.
+    reads as empty, with no error, so a missing one looks exactly like having no data. **Check
+    permissions** in Elastly tests each one and names any that are missing.
   </Step>
   <Step title="Save and assign the role to a user">
     **Save**, then give a user this role. Open the user under **Setup → Users/Roles → Manage Users**,
@@ -162,11 +163,12 @@ to them.
     them), and confirm the assigned user has the same access. On a single-subsidiary account there's
     nothing to set here.
   </Accordion>
-  <Accordion title="If you don't see &quot;Estimate&quot; in the list" icon="tag">
-    NetSuite may label this permission "Quotation," not "Estimate." Even on an account that has never
-    renamed anything, the Transactions permission picker can list the Estimate record under NetSuite's
-    internal name, **Quotation**. If you don't see "Estimate", look for "Quotation" instead; it's the
-    same permission.
+  <Accordion title="If you don't see a permission in the list" icon="tag">
+    NetSuite may list a permission under a different name. Even on an account that has never renamed
+    anything, the Transactions permission picker can list the Estimate record as **Quotation**. If your
+    account renamed records under **Setup → Company → Rename Records/Transactions**, the picker shows
+    your names, for example **Inquiry** for Opportunity. Look for the label your team uses for that
+    record; it's the same permission. **Check permissions** in Elastly confirms it worked.
   </Accordion>
   <Accordion title="Turning on price write-back later" icon="pen">
     If you want Elastly to batch-publish approved recommendations onto your NetSuite quotes (the
